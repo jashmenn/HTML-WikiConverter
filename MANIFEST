@@ -3,4 +3,6 @@ Makefile.PL
 MANIFEST
 README
 t/test.t
+WikiConverter/Dialect.pm
+WikiConverter/Dialect/MediaWiki.pm
 WikiConverter.pm

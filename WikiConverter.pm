@@ -4,14 +4,81 @@ use warnings;
 use strict;
 
 use vars qw( $VERSION );
-$VERSION = '0.12';
+$VERSION = '0.15';
 
-use HTML::Entities;
+use Carp 'croak';
 use HTML::PrettyPrinter;
 use HTML::TreeBuilder;
-use Image::Grab;
-use Image::Size;
-use URI;
+
+#
+# Changes
+#
+# Vers 0.15 - 5/20/04
+# o Added support for wiki dialects via HTML::WikiConverter::Dialect interface
+# o Added HTML::WikiConverter::Dialect
+# o Added HTML::WikiConverter::Dialect::MediaWiki
+# o Added HTML::WikiConverter::Dialect::PhpWiki
+# o Added HTML::WikiConverter::Dialect::Kwiki
+# o Fixed spacing issues in tidy_whitespace
+# o Added handling of containers, blocks, and line elements
+# o Now supports multiply-indented blocks
+# o 
+#
+# Vers 0.14 - 5/17/04
+# o Changed 'wikify_default' to 'passthru' for semantic clarity
+# o NOWIKI blocks are no longer preserved -- they shouldn't
+#   appear in the HTML input, only in the WC output
+# o Bug fix: Add newline to HTML source before wikification --
+#   avoids apparent bugs in HTML::TreeBuilder that prevent proper
+#   tag nesting
+# o Added trim method to encapsulate whitespace trimming
+# o '_elem_has_ancestor' now accepts a compiled regexp or
+#   a tag name
+# o If a regexp with capturing parens is passed into
+#   '_elem_has_ancestor', then captured values will be returned
+#   on a successful match
+# o Added support for nested lists (though mixed UL/OL lists are
+#   not handled correctly)
+# o Bug fix: extra whitespace in PRE blocks is no longer trimmed
+#   (required $parent parameter to 'wikify' method)
+# o Ensures that PRE blocks have at least one single space at 
+#   the start of each line contained within. So "<PRE>test</PRE>"
+#   becomes " test" (on its own line).
+# o CENTER and SMALL tags are now preserved (passthru support)
+# o Added 'escape_wikitext' method to preserve "{{...}}" blocks
+#   such as "{{msg:stub}}" or "{{NUMBEROFARTICLES}}"
+# o Bug fix: Add leading space before wiki links
+# o Can now produce "[[programming language]]s" wiki links
+#
+# Vers 0.12 - 5/14/04
+# o Bug fix: removed reference to non-existent 'has_parent'
+#   method within '_elem_has_ancestor'
+# o Bug fix: fixed potential bug in 'wikify_list_item'
+#   which used $node->parent->tag eq '...' instead of
+#   _elem_has_ancestor($node, '...')
+# o Added support for definition lists
+# o Added support for indentation
+# o Replace code handler for P tag with flank handler
+# o Replace code handler for OL/UL tags with flank handlers
+# o Renamed 'wikify_heading' to 'wikify_h' for consistency
+#   with other 'wikify_*' handlers
+# o NOWIKI blocks are now preserved
+# o Introduced beginnings of Unicode support with the
+#   use of HTML::Entities
+#
+# Vers 0.11 - 5/10/04
+# o Added wikify_default -- a default handler for
+#   tags that should be preserved. Tags without
+#   handlers are removed from the wiki markup. So
+#   for example, "<TAG>content</TAG>" becomes 
+#   "content". By assigning the TAG to wikify_default,
+#   the resulting wiki markup is "<tag>content</tag>".
+#   All attributes are preserved as well.
+# o Added wikify_span
+# o New tags handled
+#   - FONT, SUP, SUB are now preserved in wiki markup (see wikify_default)
+#   - SPAN: attempts to convert into FONT (see wikify_span)
+#
 
 =head1 NAME
 
@@ -48,6 +115,8 @@ a new HTML::WikiConverter object. Allowed attribute names:
  file     - (scalar) name of HTML file to convert to wikitext
  html     - (scalar) HTML source to convert
  base_url - (scalar) base URL used to make absolute URLs
+ dialect  - (scalar) wiki engine target, either MediaWiki
+                     or PhpWiki (default: MediaWiki)
 
 If both the 'file' and 'html' attributes are specified, only
 the 'file' attribute will be used.
@@ -60,99 +129,67 @@ sub new {
   my $self = bless {
     file     => $attr{file},
     html     => $attr{html},
-    base_url => $attr{base_url},
     root     => new HTML::TreeBuilder(),
-    
-    # XXX These should be made configurable
-    convert_wplinks => 1,
-    default_wplang  => 'en',
-
-    tag_handlers => {
-      html   => '',
-      head   => '',
-      title  => '',
-      meta   => '',
-      body   => '',
-
-      br     => "<br />",
-      b      => [ "'''" ],
-      strong => [ "'''" ],
-      i      => [ "''"  ],
-      em     => [ "''"  ],
-      hr     => "----\n\n",
-
-      # PRE blocks are handled specially (see tidy_whitespace and
-      # wikify methods)
-      pre    => [ "<pre>", "</pre>" ],
-
-      dl     => [ '', "\n\n" ],
-      dt     => [ ';', '' ],
-      dd     => [ ':', '' ],
-
-      p      => [ "\n\n", "\n\n" ],
-      ul     => [ '', "\n" ],
-      ol     => [ '', "\n" ],
-
-      li     => \&wikify_list_item,
-      table  => \&wikify_table,
-      tr     => \&wikify_tr,
-      td     => \&wikify_td,
-      th     => \&wikify_td,
-      div    => \&wikify_div,
-      img    => \&wikify_img,
-      a      => \&wikify_link,
-      span   => \&wikify_span,
-
-      h1     => \&wikify_h,
-      h2     => \&wikify_h,
-      h3     => \&wikify_h,
-      h4     => \&wikify_h,
-      h5     => \&wikify_h,
-      h6     => \&wikify_h,
-
-      font   => \&wikify_default,
-      sup    => \&wikify_default,
-      sub    => \&wikify_default,
-      nowiki => \&wikify_default,
-    }
+    dialect  => $attr{dialect} || 'MediaWiki'
   }, $pkg;
 
   # Configure up the tree builder
-  $self->{root}->implicit_tags(1);
-  $self->{root}->implicit_body_p_tag(1);
-  $self->{root}->ignore_ignorable_whitespace(1);
-  $self->{root}->no_space_compacting(1);
-  $self->{root}->ignore_unknown(0);
-  $self->{root}->p_strict(1);
+  $self->root->implicit_tags(1);
+  $self->root->implicit_body_p_tag(1);
+  $self->root->ignore_ignorable_whitespace(1);
+  $self->root->no_space_compacting(1);
+  $self->root->ignore_unknown(0);
+  $self->root->p_strict(1);
+
+  # Load the tag handler class or croak
+  $self->{tag_handler_class} = "HTML::WikiConverter::Dialect::$self->{dialect}";
+  eval "use $self->{tag_handler_class};";
+  croak "No such tag handler class found '$self->{tag_handler_class}': $!" if $@;
+
+  $self->{tag_handler} = $self->tag_handler_class->new( %attr );
+  $self->{tag_handler}->{root} = $self->root;
+  $self->{tag_handler}->{base_url} = $attr{base_url};
  
   # Parse HTML source
   if( $self->{file} ) {
-    $self->{root}->parse_file( $self->{file} );
+    $self->root->parse_file( $self->file );
   } else {
-    $self->{root}->parse( $self->{html} );
+    chomp $self->{html};
+    $self->root->parse( $self->html."\n" );
   }
 
   return $self;
 }
 
-=item B<output>
+sub file { shift->{file} }
+sub html { shift->{html} }
+sub root { shift->{root} }
+sub dialect { shift->{dialect} }
+sub tag_handler { shift->{tag_handler} }
+sub tag_handler_class { shift->{tag_handler_class} }
 
-  $wikitext = $wc->output
+=item B <output>
 
-Returns the converted HTML as wikitext markup.
+  $output = $wc->output
+
+Converts HTML input to wiki markup.
 
 =cut
 
 sub output {
-  my $self = shift;
-  my $output = $self->wikify( $self->{root} );
-  $self->tidy_whitespace( \$output );
+  shift->tag_handler->output;
+}
 
-  # Unicode support (translates high bit chars
-  # to corresponding HTML entities)
-  encode_entities($output, "\200-\377");
+=item B<log>
 
-  return $output;
+  $log_output = $wc->log
+
+Returns log information accumulated during conversion.
+
+=cut
+
+sub log {
+  shift->tag_handler->log;
 }
 
 =item B<rendered_html>
@@ -162,7 +199,7 @@ sub output {
 Returns a pretty-printed version of the HTML that WikiConverter used
 to produce wikitext markup. This will almost certainly differ from the
 HTML input provided to C<new> because of internal processing done by
-HTML::TreeBuilder, namely that all end tags are closed, HTML, BODY,
+HTML::TreeBuilder, namely that all start tags are closed, HTML, BODY,
 and HEAD tags are automatically wrapped around the provided HTML
 source (if not already present), tags are converted to lowercase,
 attributes are quoted, etc.
@@ -180,168 +217,8 @@ sub rendered_html {
   );
   $pp->set_nl_after( 1, 'all!' );
 
-  my $fmt = $pp->format($self->{root});
+  my $fmt = $pp->format($self->root);
   return join '', @$fmt;
-}
-
-=back
-
-=head1 PROTECTED METHODS
-
-These internal methods are used to format the HTML source into
-wikitext. They should be considered protected methods in the sense
-that you should only call them from a class derived from
-HTML::WikiConverter.
-
-=over
-
-=item B<tidy_whitespace>
-
-  $wc->tidy_whitespace( \$text )
-
-Removes unnecessary space from the text to tidy it up for presentation
-purposes. Removes all leading and trailing whitespace, and any
-occurrence of three or more consecutive newlines are converted into
-two newlines. Special care is taken not to disturb preformatted text
-contained within PRE blocks.
-
-=cut
-
-sub tidy_whitespace {
-  my( $self, $output ) = @_;
-
-  # Strip leading/trailing whitespace
-  $$output =~ s/^\s+//;
-  $$output =~ s/\s+$//;
-
-  #
-  # Tidy up whitespace by replacing two or more endlines
-  # (\n or \r) with \n\n. This must take care not to
-  # disturb PRE blocks, whose whitespace cannot be ignored.
-  #
-  # Method:
-  #
-  #   1. Replace <PRE>...</PRE> with <unique_string>[<index>],
-  #      where <unique_string> is some long, random, unlikely-
-  #      to-be-present-in-output string, and <index> is the
-  #      order in which the PRE block appears in the output.
-  #      Store each PRE block in @pre_blocks, which is indexed
-  #      by <index>
-  #   2. Convert [\n\r]{2,n} into \n\n
-  #   3. Replace each occurence of <unique_string>[<index>]
-  #      in the output with the corresponding item from
-  #      @pre_blocks
-  #
-  # This is essentially borrowed from the MediaWiki source.
-  #
-
-  my @pre_blocks;
-  my $pre_index = 0;
-
-  my $unique = '3iyZiyA7iMwg5rhxP0Dcc9oTnj8qD1jm1Sfv4';
-
-  $$output =~ s{<\s*pre.*?>(.*?)<\s*/\s*pre\s*>}{
-    push @pre_blocks, $1;
-    $unique.'['.$pre_index++.']';
-  }gise;
-
-  # Strip extra newlines
-  $$output =~ s/\r\n/\n/g;
-  $$output =~ s/\n{2,}/\n\n/g;
-
-  # Put the PRE blocks back in
-  $$output =~ s{$unique\[(\d+)\]}{$pre_blocks[$1]}g;
-}
-
-=item B<wikify>
-
-  $output = $wc->wikify( $elem [, $parent] )
-
-Converts the HTML::Element specified by $elem into wikitext markup
-and returns the wikitext.
-
-=cut
-
-# As of version 0.11, the $parent parameter
-# is no longer used -- diberri 5/14/04
-sub wikify {
-  my( $self, $node, $parent ) = @_;
-
-  # Will be returned at end
-  my $output = '';
-
-  # Determine how to process
-  if( UNIVERSAL::isa( $node, 'HTML::Element' ) ) {
-    my $conv = $self->{tag_handlers}->{$node->tag};
-    if( ref $conv eq 'CODE' ) {
-      $output = $conv->($self, $node);
-    } elsif( ref $conv eq 'ARRAY' ) {
-      $output .= $self->wikify($_, $node) for $node->content_list;
-      $output = $conv->[0].$output.$conv->[-1];
-    } elsif( defined $conv ) {
-      $output = $conv;
-      $output .= $self->wikify($_, $node) foreach $node->content_list;
-    } else {
-      $output .= $self->wikify($_, $node) for $node->content_list;
-    }
-  } else {
-    $output = $node;
-    $output =~ s/ {2,}/ /g unless _elem_has_ancestor( $node, 'pre' ); #ref $parent and $parent->tag eq 'pre';
-    $output = '' unless $output =~ /\S/;
-  }
-
-  return $output;
-}
-
-=item B<elem_contents>
-
-  $outpupt = $wc->elem_contents( $elem );
-
-Returns a wikified version of the contents of the specified
-HTML element. This is done by passing each element of this
-element's content list through the C<wikify()> method, and
-returning the concatenated result.
-
-=cut
-
-sub elem_contents {
-  my( $self, $node ) = @_;
-  my $output = '';
-  $output .= $self->wikify($_) foreach $node->content_list;
-  return $output;
-}
-
-=item B<absolute_url>
-
-  $absurl = $wc->absolute_url( $url )
-
-If the 'base_url' attribute was specified in the WikiConverter constructor,
-then converts $url into an absolute URL and returns it. Otherwise a canonical
-version of $url is returned (see the URI module for a definition of canonical).
-
-=cut
-
-sub absolute_url {
-  my( $self, $url ) = @_;
-  my $uri = new URI( $url );
-  return $self->{base_url} ? $uri->abs($self->{base_url}) : $uri->canonical;
-}
-
-=item B<log>
-
-  $log = $wc->log( [ $msg ] )
-
-Appends $msg to the log of activity for this WikiConverter instance
-and returns the log.
-
-=cut
-
-sub log {
-  my $self = shift;
-  foreach my $msg ( @_ ) {
-    $self->{log} .= "$msg\n";
-  }
-  return $self->{log};
 }
 
 =back
@@ -373,11 +250,6 @@ should replace the start tag, and the second element specified the
 text that should replace the end tag. If only one item is in the array,
 it is used to replace both the start and end tag.
 
-For example:
-
-  $wc->set_handler( b => [ "'''" ] );
-  $wc->set_handler( i => [ "''" ] );
-
 =head2 Code handlers
 
 Code handlers are the most flexible type of tag handlers. When an
@@ -387,16 +259,12 @@ the current HTML::WikiConverter instance, and the HTML::Element
 being processed. The return value of the handler should be wikitext
 markup.
 
-For example,
-
-  $wc->set_handler( table => \&handle_table );
-
 Since code handlers must return wikitext markup, they must be sure
 to continue processing the tree of elements contained within the
 element passed to the handler. This can be done with the C<elem_contents>
 function:
 
-  sub handle_table {
+  sub wikify_table {
     my( $wc, $elem ) = @_;
     return "{|\n".$wc->elem_contents($elem)."\n|}";
   }
@@ -404,471 +272,14 @@ function:
 This ensures that elements contained within $elem are wikified properly
 (i.e., they're appropriate handlers are dispatched).
 
-=over
-
-=item B<set_handler>
-
-  $wc->set_handler( $tag, $handler )
-
-Assigns $handler as the tag handler for elements whose tag is $tag.
-
-=cut
-
-sub set_handler {
-  my( $self, $tag, $handler ) = @_;
-  $self->{tag_handlers}->{lc $tag} = $handler;
-}
-
-=item B<get_handler>
-
-  $handler = $wc->get_handler( $tag )
-
-Returns the tag handler associated with $tag.
-
-=cut
-
-sub get_handler {
-  my( $self, $tag ) = @_;
-  return $self->{tag_handlers}->{lc $tag};
-}
-
 =back
 
-=head1 BUILT-IN TAG HANDLERS
-
-The following tag handlers are built-in to HTML::WikiConverter. You
-should not need to call these directly, but they are listed here for
-the sake of completeness.
-
-=over
-
-=item B<wikify_table>
-
-  $output = wikify_table( $elem )
-
 =cut
-
-sub wikify_table {
-  my( $self, $node ) = @_;
-  
-  my @attrs = qw/cellpadding cellspacing border bgcolor align style class id/;
-  my $output = "{| "._elem_attr_str($node, @attrs)."\n";
-  $output .= $self->elem_contents($node);
-  $output .= "|}\n\n";
-
-  return $output;
-}
-
-=item B<wikify_tr>
-
-  $output = wikify_tr( $elem )
-
-=cut
-
-sub wikify_tr {
-  my( $self, $node ) = @_;
-  
-  # XXX
-  # Shouldn't print a |- if this TR is the first
-  # table row *and* the TR has no attributes
-  # XXX
-
-  my @attrs = qw/id style class bgcolor/;
-  my $attr_str = _elem_attr_str($node, @attrs);
-
-  my $output = "|- $attr_str\n";
-  $output .= $self->elem_contents($node);
-
-  return $output;
-}
-
-=item B<wikify_td>
-
-  $output = wikify_td( $elem )
-
-=cut
-
-sub wikify_td {
-  my( $self, $node ) = @_;
-
-  my @attrs = qw/id style class bgcolor/;
-  my $attr_str = _elem_attr_str($node, @attrs);
-  $attr_str .= " | " if $attr_str;
-
-  my $output = "| $attr_str";
-  my $content = $self->elem_contents($node);
-  $content =~ s/^\s+//;
-  $content =~ s/\s+$//; # new
-  $output .= $content;
-
-  return "$output\n";
-}
-
-=item B<wikify_list_item>
-
-  $output = wikify_list_item( $elem )
-
-=cut
-
-# XXX Doesn't properly handle nesting
-sub wikify_list_item {
-  my( $self, $node ) = @_;
-
-  my $output = _elem_has_ancestor($node, 'ol') ? '*' : '#';
-  my $content = $self->elem_contents($node);
-
-  # Trim whitespace
-  $content =~ s/^\s+//;
-  $content =~ s/\s+$//;
-
-  $output .= $content;
-  
-  return "$output\n";
-}
-
-=item B<wikify_link>
-
-  $output = wikify_link( $elem )
-
-=cut
-
-sub wikify_link {
-  my( $self, $node ) = @_;
-  
-  my $url = $self->absolute_url( $node->attr('href') );
-  my $title = $self->elem_contents($node);
-  $title =~ s/^\s+// unless $url;
-  $title =~ s/\s+$// unless $url;
-
-  # Just return the link title if this tag is contained
-  # within an header tag
-  return $title if ref $node->parent and $node->parent->tag =~ /h\d/;
-
-  # Return if this is a link to an image contained within
-  return $title if _elem_is_image_div($node->parent);
-
-  # Convert wikilinks
-  if( $self->{convert_wplinks} ) {
-    if( $url =~ m~http://(\w{2})\.wikipedia\.org/wiki/(.+)~ ) {
-      my $lang = $1;
-      ( my $wiki_page = $2 ) =~ s/_+/ /g;
-      my $lang_interwiki = "$lang:" unless $lang eq $self->{default_wplang};
-      return "[[$lang_interwiki$wiki_page]]" if $wiki_page eq $title;
-      return "[[$lang_interwiki$wiki_page|$title]]";
-    }
-  }
-
-  # If HREF is the same as the link title, then
-  # just return the URL (it'll be converted into
-  # a clickable link by the wiki engine)
-  return $url if $url eq $title;
-  return "[$url $title]";
-}
-
-=item B<wikify_img>
-
-  $output = wikify_img( $elem )
-
-=cut
-
-sub wikify_img {
-  my( $self, $node ) = @_;
-  
-  my $image_url = $self->absolute_url( URI->new( $node->attr('src') )->canonical );
-  my $file = ( $image_url->path_segments )[-1];
-
-  $self->log( "Processing IMG tag for SRC: ".$image_url->canonical."..." );
-
-  #
-  # Grab attributes to be added to the [[Image:]] markup
-  #
-
-  my $image_div = $node->parent if _elem_is_image_div( $node->parent );
-  $image_div ||= $node->parent->parent if ref $node->parent and _elem_is_image_div( $node->parent->parent );
-
-  my @attrs;
-  if( $image_div ) {
-    my $css_style = $image_div->attr('style');
-    my $css_class = $image_div->attr('class');
-    
-    # Check for float attribute; if it's there,
-    # then we'll add it to the [[Image:]] syntax
-    $css_style =~ /float\:\s*(right|left)/i;
-    my $alignment = $1;
-    
-    $css_class =~ /float(right|left)/i;
-    $alignment ||= $1;
-    
-    if( $alignment ) {
-      push @attrs, $alignment;
-
-      $self->log( "  Image is contained within a DIV that specifies $alignment alignment" );
-      $self->log( "  Adding '$alignment' to [[Image:]] markup attributes" );
-    } else {
-      $self->log( "  Image is not contained within a DIV for alignment" );
-    }
-  } else {
-    $self->log( "  Image is not contained within a DIV" );
-  }
-  
-  #
-  # Check if we need to request a thumbnail of this
-  # image; it's needed if the specified width attribute
-  # differs from the default size of the image
-  #
-
-  if( my $width = $node->attr('width') ) {
-    $self->log( "  Image has WIDTH attribute of $width" );
-    $self->log( "  Checking whether resulting [[Image:]] markup should specify a thumbnail..." );
-
-    # Download the image from the network and store
-    # its contents in $buffer
-    my $abs_url = $self->absolute_url( $node->attr('src') );
-    $self->log( "    Fetching image '$abs_url' from the network" );
-    my $image = new Image::Grab();
-    $image->url( $abs_url );
-    $image->grab();
-    my $buffer = $image->image;
-    
-    # Grab the width & height of the image
-
-    my( $actual_w, $actual_h ) = imgsize( \$buffer );
-    $self->log( "    Calculating size of image '$abs_url': $actual_w x $actual_h" );
-
-    # If the WIDTH attribute of the IMG tag is not equal
-    # to the actual width of the image, then we need to
-    # create a thumbnail
-    if( $width =~ /^\d+$/ and $width != $actual_w ) {
-      $self->log( "    IMG tag's WIDTH attribute ($width) differs from actual width of image ($actual_w)" );
-      $self->log( "      -- that means we're going to need a thumbnail" );
-      $self->log( "    Adding 'thumb' and '${width}px' to list of attributes for [[Image:]] markup" );
-      push @attrs, 'thumb';
-      push @attrs, "${width}px";
-    }
-  }
-
-  if( my $alt = $node->attr('alt') ) {
-    $self->log( "  Adding alternate text '$alt' to [[Image:]] markup" );
-    push @attrs, $alt;
-  }
-
-  my $attr_str = join '|', @attrs;
-
-  # All [[Image:]] markup ends with two newlines
-  my $trail_space = "\n\n";
-
-  $self->log( "...done processing IMG tag\n" );
-
-  return "[[Image:$file|$attr_str]]$trail_space";
-}
-
-=item B<wikify_div>
-
-  $output = wikify_div( $elem )
-
-=cut
-
-sub wikify_div {
-  my( $self, $node ) = @_;
-  
-  my $contents = $self->elem_contents( $node );
-
-  # Image DIVs will be removed because the [[Image:image.jpg|...]]
-  # syntax (see wikify_img) can specify this information
-  return $contents if _elem_is_image_div($node);
-
-  # Normal (non-image) DIV
-  my @attrs = qw/align class id style/;
-  my $attr_str = _elem_attr_str($node, @attrs);
-  $attr_str = " $attr_str" if $attr_str;
-  return "<div$attr_str>$contents</div>\n\n";
-}
-
-=item B<wikify_default>
-
-  $output = wikify_default( $elem )
-
-This handler should be assigned to all tags that do not
-need further processing. For example, in order to preserve
-FONT tags from the HTML source in the wiki output, one
-must use
-
-  $wc->set_handler( font => \&HTML::WikiConverter::wikify_default );
-
-This ensures that FONT tags are not simply removed from the
-HTML source.
-
-=cut
-
-sub wikify_default {
-  my( $self, $node ) = @_;
-  
-  my $content = $self->elem_contents($node);
-
-  my $attr_str = join ' ', map {
-    my $attr = $node->attr($_);
-    "$_=\"$attr\"";
-  } grep {
-    length $node->attr($_)
-  } $node->all_external_attr_names;
-
-  my $tag = $node->tag;
-  $attr_str &&= " $attr_str";
-
-  return "<$tag$attr_str>$content</$tag>";
-}
-
-=item B<wikify_span>
-
-  $output = wikify_span( $elem )
-
-Attempts to convert a SPAN tag into an equivalent FONT tag (since
-some wikis do not allow SPAN tags, only FONT tags).
-
-=cut
-
-sub wikify_span {
-  my( $self, $node ) = @_;
-
-  my $content = $self->elem_contents( $node );
-
-  # Grab STYLE attribute
-  my $style = $node->attr('style');
-
-  # Maps STYLE properties to FONT attributes
-  my %style2font = (
-    'font-family' => 'face',
-    'color'       => 'color',
-  );
-
-  # Parse STYLE attribute
-  my $font_attr_str = '';
-  foreach my $prop ( split ';', $node->attr('style') ) {
-    my( $pname, $pval ) = split ':', $prop, 2;
-    $pname = lc $pname;
-
-    if( exists $style2font{$pname} and length $pval ) {
-      $font_attr_str .= " $style2font{$pname}=\"$pval\"" if length $pval;
-    }
-  }
-
-  # Grab CLASS and ID attributes too
-  for my $attr ( qw/class id/ ) {
-    my $val = $node->attr($attr);
-    $font_attr_str .= " $attr=\"$val\"" if length $val;
-  }
-  
-  # Convert into FONT tag if we have some valid attributes
-  return "<font$font_attr_str>$content</font>" if $font_attr_str;
-
-  # Strip off SPAN tag otherwise
-  return $content;
-}
-
-=item B<wikify_h>
-
-  $output = wikify_h( $elem )
-
-=cut
-
-sub wikify_h {
-  my( $self, $node ) = @_;
-
-  # Parse the heading level out of the tag name
-  $node->tag =~ /h(\d)/;
-
-  # Number of equal signs in wiki heading syntax
-  # is equal to the heading level ($1)
-  my $markup = ('=') x $1; 
-
-  return $markup.' '.$self->elem_contents($node).' '.$markup."\n\n";
-}
-
-#
-# Private function: _elem_attr_str( $elem, @attrs )
-#
-# Returns a string containing a list of attribute names and
-# values associated with the specified HTML element. Only
-# attribute names included in @attrs will be added to the
-# string of attributes that is returned. The return value
-# is suitable for inserting into an HTML document, as
-# attribute name/value pairs are specified in attr="value"
-# format.
-#
-
-sub _elem_attr_str {
-  my( $node, @attrs ) = @_;
-  return join ' ', map {
-    "$_=\"".$node->attr($_)."\""
-  } grep {
-    my $attr = $node->attr($_);
-    defined $attr && length $attr
-  } @attrs;
-}
-
-#
-# Private function: _elem_has_ancestor( $elem, $tagname )
-#
-# Returns true if the specified HTML::Element has an ancestor element
-# whose element tag equals $tag. This is useful for determining if
-# an element belongs to the specified tag.
-#
-
-sub _elem_has_ancestor {
-  my( $node, $tag ) = @_;
-
-  return 0 unless ref $node;
-
-  if( ref $node->parent ) {
-    return 1 if $node->parent->tag eq $tag;
-    return _elem_has_ancestor( $node->parent, $tag );
-  }
-
-  return 0;
-}
-
-#
-# Private function: _elem_is_image_div( $elem )
-#
-# Returns true $elem is a container element (P or DIV) meant only to
-# lay out an IMG.
-#
-# More specifically, returns true if the given element is a DIV or P
-# element and the only child it contains is an IMG tag or an IMG tag
-# contained within a sole A tag (not counting child elements with
-# whitespace text only).
-#
-
-sub _elem_is_image_div {
-  my $node = shift;
-
-  # Return false if node is undefined or isn't a DIV at all
-  return 0 if not defined $node or $node->tag !~ /(?:p|div)/;
-
-  # This counts the number of child nodes
-  # that are either tags or are plain text
-  # with at least one nonspace character
-  my @contents = grep {
-    ref $_ or $_ =~ /\S/
-  } $node->content_list;
-
-  # Returns true if sole child is an IMG tag  
-  return 1 if @contents == 1 and ref $contents[0] and $contents[0]->tag eq 'img';
-
-  # Check if child is a sole A tag that contains an IMG tag
-  if( @contents == 1 and ref $contents[0] and $contents[0]->tag eq 'a' ) {
-    my @children = grep {
-      ref $_ or $_ =~ /\S/
-    } $contents[0]->content_list;
-    return 1 if @children == 1 and ref $children[0] and $children[0]->tag eq 'img';
-  }
-
-  return 0;
-}
 
 # Deletes the underlying HTML tree (see HTML::Element)
 sub DESTROY {
-  shift->{root}->delete();
+  my $self = shift;
+  $self->root->delete();
 }
 
 =head1 COPYRIGHT

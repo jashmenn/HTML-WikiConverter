@@ -6,7 +6,8 @@ SYNOPSIS
     use HTML::WikiConverter;
 
     my $wc = new HTML::WikiConverter(
-      html => $html_source
+      html => $html_source,
+      dialect => 'MediaWiki'
     );
 
     print $wc->output, "\n";
@@ -19,6 +20,10 @@ DESCRIPTION
       http://diberri.dyndns.org/html2wiki.html
 
     if you would like to try the module before you install it.
+
+NEW IN VERSION 0.14
+
+    o Support for adding wiki dialects (e.g., MediaWiki, PhpWiki)
 
 FEATURES
 
@@ -55,6 +60,11 @@ FEATURES
       Translates high bit characters to their HTML entity equivalents,
       in this module's first attempt at supporting Unicode.
 
+    o Supports separate wiki dialects
+
+      Translates HTML source into a variety of wiki dialects, with
+      plug-in interface using HTML::WikiConverter::Dialect.
+
 INSTALLATION
 
     The simplest way to install is via the CPAN shell:
@@ -67,6 +77,10 @@ INSTALLATION
       > make
       > make test
       > make install
+
+    Installing wiki dialects is similar:
+
+      cpan> install HTML::WikiConverter::Dialect::MediaWiki
 
 AUTHOR
     David J. Iberri <diberri@yahoo.com>
