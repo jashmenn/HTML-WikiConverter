@@ -11,7 +11,8 @@ WriteMakefile(
        HTML::TreeBuilder   => 3.13,
        Image::Grab	   => 1.4,
        Image::Size	   => 2.992,
-       URI		   => 1.23
+       URI::Escape         => 3.21,
+       URI		   => 1.23,
     }, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM => 'WikiConverter.pm', # retrieve abstract from module

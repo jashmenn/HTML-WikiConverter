@@ -4,7 +4,7 @@ use warnings;
 use strict;
 
 use vars qw( $VERSION );
-$VERSION = '0.15';
+$VERSION = '0.16';
 
 use Carp 'croak';
 use HTML::PrettyPrinter;
@@ -13,6 +13,11 @@ use HTML::TreeBuilder;
 #
 # Changes
 #
+# Vers 0.16 - 5/25/04 10:16:33 PST
+# o Added benchmarking (using Time::HiRes if available)
+# o More Unicode support
+# o Lots has been moved to HTML::WikiConverter::Dialect module
+#
 # Vers 0.15 - 5/20/04
 # o Added support for wiki dialects via HTML::WikiConverter::Dialect interface
 # o Added HTML::WikiConverter::Dialect
@@ -20,9 +25,8 @@ use HTML::TreeBuilder;
 # o Added HTML::WikiConverter::Dialect::PhpWiki
 # o Added HTML::WikiConverter::Dialect::Kwiki
 # o Fixed spacing issues in tidy_whitespace
-# o Added handling of containers, blocks, and line elements
+# o Added handling of container, block, and line elements
 # o Now supports multiply-indented blocks
-# o 
 #
 # Vers 0.14 - 5/17/04
 # o Changed 'wikify_default' to 'passthru' for semantic clarity
@@ -127,10 +131,11 @@ sub new {
   my( $pkg, %attr ) = @_;
 
   my $self = bless {
-    file     => $attr{file},
-    html     => $attr{html},
-    root     => new HTML::TreeBuilder(),
-    dialect  => $attr{dialect} || 'MediaWiki'
+    file      => $attr{file},
+    html      => $attr{html},
+    root      => new HTML::TreeBuilder(),
+    dialect   => $attr{dialect} || 'MediaWiki',
+    benchmark => $attr{benchmark},
   }, $pkg;
 
   # Configure up the tree builder
@@ -141,34 +146,78 @@ sub new {
   $self->root->ignore_unknown(0);
   $self->root->p_strict(1);
 
-  # Load the tag handler class or croak
+  # Load the dialect class or croak
   $self->{tag_handler_class} = "HTML::WikiConverter::Dialect::$self->{dialect}";
   eval "use $self->{tag_handler_class};";
   croak "No such tag handler class found '$self->{tag_handler_class}': $!" if $@;
 
-  $self->{tag_handler} = $self->tag_handler_class->new( %attr );
+  # Construct a new HTML::WikiConverter::Dialect::* object
+  $self->{tag_handler} = $self->tag_handler_class->new( %attr, root => $self->root );
   $self->{tag_handler}->{root} = $self->root;
   $self->{tag_handler}->{base_url} = $attr{base_url};
+
+  # Figure out if we should benchmark (only if
+  # we were passed the "benchmarks" option and
+  # Time::HiRes is installed)
+  if( $self->{benchmark} ) {
+    eval { require Time::HiRes; };
+    $self->{do_benchmarks} = 1 unless $@;
+  }
  
   # Parse HTML source
   if( $self->{file} ) {
     $self->root->parse_file( $self->file );
   } else {
     chomp $self->{html};
+
+    # Convert HTML entities to Unicode characters
+    eval {
+      require HTML::Entities;
+      HTML::Entities::decode_entities( $self->{html} );
+    };
+
+    my $time1 = [Time::HiRes::time()] if $self->{do_benchmarks};
     $self->root->parse( $self->html."\n" );
+    $self->{parse_duration} = Time::HiRes::tv_interval( $time1 ) if $self->{do_benchmarks};
   }
 
   return $self;
 }
 
+=item B<file>
+
+  $file = $wc->file
+
+Returns the value of the 'file' property passed to the C<new> constructor.
+
+=cut
+
 sub file { shift->{file} }
+
+=item B<html>
+
+  $html = $wc->html
+
+Returns the value of the 'html' property passed to the C<new> constructor.
+
+=cut
+
 sub html { shift->{html} }
+
+=item B<root>
+
+  $root = $wc->root
+
+Returns the root HTML::Element of the HTML tree 
+
+=cut
+
 sub root { shift->{root} }
 sub dialect { shift->{dialect} }
 sub tag_handler { shift->{tag_handler} }
 sub tag_handler_class { shift->{tag_handler_class} }
 
-=item B <output>
+=item B<output>
 
   $output = $wc->output
 
@@ -177,7 +226,11 @@ Converts HTML input to wiki markup.
 =cut
 
 sub output {
-  shift->tag_handler->output;
+  my $self = shift;
+  my $time1 = [Time::HiRes::time()] if $self->{do_benchmarks};
+  my $output = $self->tag_handler->output;
+  $self->{output_duration} = Time::HiRes::tv_interval( $time1 ) if $self->{do_benchmarks};
+  return $output;
 }
 
 =item B<log>
@@ -220,61 +273,6 @@ sub rendered_html {
   my $fmt = $pp->format($self->root);
   return join '', @$fmt;
 }
-
-=back
-
-=head1 TAG HANDLERS
-
-Tag handlers are the real workhorse of the HTML::WikiConverter module. They
-essentially do all the converting of HTML elements into their corresponding
-wiki markup.
-
-There are three types of handlers: 1) replacement, 2) flank, and 3) code.
-
-=head2 Replacement handlers
-
-A replacement handler is the simplest type of handler. When a tag is
-encountered that has a replacement handler, the tag is simply replaced
-with the value of the replacement handler. This is used, for example,
-to convert "<hr>" into "----".  Replacement handlers are string
-values.
-
-=head2 Flank handlers
-
-In contrast, flank handlers don't completely replace the tag; they
-simply place markup around the contents of the tag (stripping the
-start and end tags). This is used, for example, to convert "<b>bold
-text</b>" into "'''bold text'''".  A flank handler is specified with
-an anonymous array of two elements: the first specifies the text that
-should replace the start tag, and the second element specified the
-text that should replace the end tag. If only one item is in the array,
-it is used to replace both the start and end tag.
-
-=head2 Code handlers
-
-Code handlers are the most flexible type of tag handlers. When an
-element is encountered that has a code handler, the handler is
-executed as a method call. The code handler receives two arguments,
-the current HTML::WikiConverter instance, and the HTML::Element
-being processed. The return value of the handler should be wikitext
-markup.
-
-Since code handlers must return wikitext markup, they must be sure
-to continue processing the tree of elements contained within the
-element passed to the handler. This can be done with the C<elem_contents>
-function:
-
-  sub wikify_table {
-    my( $wc, $elem ) = @_;
-    return "{|\n".$wc->elem_contents($elem)."\n|}";
-  }
-
-This ensures that elements contained within $elem are wikified properly
-(i.e., they're appropriate handlers are dispatched).
-
-=back
-
-=cut
 
 # Deletes the underlying HTML tree (see HTML::Element)
 sub DESTROY {

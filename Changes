@@ -1,14 +1,33 @@
 # Change log for HTML::WikiConverter
 
+version: 0.16
+date:    Fri May 28 12:33:14 PDT 2004
+ - Added 'elem_style_attr_props' method for parsing the STYLE attribute
+ - Tags that are meant to be stripped (e.g. HTML, META, HEAD) no longer
+   need to be explicitly assigned an empty replacement handler (they
+   can simply be excluded from the list of tag handlers)
+ - Added handling of non-breaking elements (e.g. in some dialects, such
+   as MediaWiki, P tags should not have any embedded newlines)
+ - Fixed whitespace handling in H::W::Dialect
+ - Documentation additions
+ - MediaWiki: added colspan and rowspan to allowed TD attrs
+ - MW: Now supports 'pretty_tables' option for making nice borders/shading
+ - MW: Removed arbitrary 20-char limit in conversion of {{...}} magic
+ - MW: "[1]"-style links are now handled properly
+ - MW: Hex codes/HTML entities in URLs now translated to appropriate char
+   (requires URI::Escape)
+ - MW: Major list handling cleanup and bug fixes
+ - MW: Added new realworld test (my User: page)
+
 version: 0.15
 date:    Thu May 20 8:50:37 PDT 2004
  - Split module into several separate modules
  - HTML::WikiConverter is still the main interface
  - Added support for wiki dialects via HTML::WIkiConverter::Dialect interface
- - Added HTMLM::WikiConverter::Dialect
- - Added HTMLM::WikiConverter::Dialect::MediaWiki
- - Added HTMLM::WikiConverter::Dialect::PhpWiki
- - Added HTMLM::WikiConverter::Dialect::Kwiki
+ - Added HTML::WikiConverter::Dialect
+ - Added HTML::WikiConverter::Dialect::MediaWiki
+ - Added HTML::WikiConverter::Dialect::PhpWiki
+ - Added HTML::WikiConverter::Dialect::Kwiki
  - Fixed spacing issues in tidy_whitespace
  - Added container, block, and line element handling
  - Now supports multiply-indented blocks
