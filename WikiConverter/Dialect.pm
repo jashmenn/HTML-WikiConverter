@@ -1,17 +1,28 @@
 package HTML::WikiConverter::Dialect;
 
 use vars qw($VERSION);
-$VERSION = '0.16';
+$VERSION = '0.17';
 
 require Exporter;
 use base 'Exporter';
 use vars qw( @EXPORT_OK );
-@EXPORT_OK = qw/trim passthru/;
+@EXPORT_OK = qw/trim passthru ignore/;
 
 use URI;
 
 #
 # Changes
+#
+# version: 0.17
+# date:    Wed 6/02/04 19:24:11 PDT
+# changes:
+#  - bug fix: whitespace handling in nonbreaking elements
+#    is now handled properly (added /s switch to regexp)
+#  - doc bug fix: documentation incorrectly described how
+#    to append tags to *_elements methods
+#  - bug fix: elem_has_ancestor now properly returns captured
+#    matches
+#  - added 'ignore' tag handler
 #
 # version: 0.16
 # date:    Fri 5/28/04 11:38:42 PDT
@@ -27,7 +38,7 @@ use URI;
 
 =head1 NAME
 
-HTML::WikiConverter::Dialect - Base class for creating new wiki dialects
+HTML::WikiConverter::Dialect - Base class for creating new wiki converter dialects
 
 =head1 SYNOPSIS
 
@@ -63,11 +74,11 @@ HTML::WikiConverter::Dialect - Base class for creating new wiki dialects
   #
 
   my $wc = new HTML::WikiConverter(
-    html    => qq(
+    html => qq(
       <P> My name is <B>David</B> and I am happy. </P>
-      <PRE> print join " ", reverse qw(fun is Perl); </PRE>
+      <PRE> print join ' ', reverse qw(fun is Perl); </PRE>
     ),
-    dialect => "MyWikiEngine"
+    dialect => 'MyWikiEngine'
   );
 
   print $wc->output;
@@ -218,7 +229,7 @@ of your own, simply define a method like so:
 
   sub block_elements {
     return {
-      shift->SUPER::block_elements,
+      %{ shift->SUPER::block_elements },
       map { $_ => 1 } qw/center/
     };
   }
@@ -434,8 +445,15 @@ sub wikify {
       $output = "\n\n$output\n\n";
     }
   } else {
+    $output = $self->wikify_text($node, $parent);
+  }
+
+  return $output;
+}
+
+sub old_wikify_textpart {
     # This is a text-only node (not an HTML::Element)
-    $output = $node;
+    my $output = $node; # orig didn't have 'my'
 
     # Whitespace inside non display containers is ignored
     if( ref $parent and $self->container_elements->{$parent->tag} and $node !~ /\S/ ) {
@@ -443,8 +461,9 @@ sub wikify {
     }
 
     # Non-breaking elements should have no embedded newlines
-    if( $self->nonbreaking_elements->{$parent->tag} and $output ) {
-      if( $output =~ /^(\s*)(.+?)(\s*)$/ ) {
+    my $nbe = $self->nonbreaking_elements;
+    if( ( $nbe->{$parent->tag} or $parent->look_up( sub { $nbe->{shift->tag} } ) ) and $output ) {
+      if( $output =~ /^(\s*)(.+?)(\s*)$/s ) {
         my( $lead, $content, $trail ) = ( $1, $2, $3 );
 
         # Remove embedded newlines
@@ -460,6 +479,36 @@ sub wikify {
       $output =~ s/[\r\n]+$/\n/;
       $output =~ s/ {2,}/ /g;
     }
+}
+
+sub wikify_text {
+  my( $self, $text, $parent ) = @_;
+
+  my $output = $text;
+
+  # Whitespace inside non display containers is ignored
+  if( ref $parent and $self->container_elements->{$parent->tag} and $node !~ /\S/ ) {
+    $output = '';
+  }
+
+  # Non-breaking elements should have no embedded newlines
+  my $nbe = $self->nonbreaking_elements;
+  if( ( $nbe->{$parent->tag} or $parent->look_up( sub { $nbe->{shift->tag} } ) ) and $output ) {
+    if( $output =~ /^(\s*)(.+?)(\s*)$/s ) {
+      my( $lead, $content, $trail ) = ( $1, $2, $3 );
+
+      # Remove embedded newlines
+      s/[\r\n]+/ /g for( $lead, $content );
+
+      # Put it all back together
+      $output = $lead.$content.$trail;
+    }
+  }
+
+  # Strip excess whitespace except in PRE blocks
+  unless( ( ref $parent and $parent->tag eq 'pre' ) or $self->elem_has_ancestor( $parent, 'pre' ) ) {
+    $output =~ s/[\r\n]+$/\n/;
+    $output =~ s/ {2,}/ /g;
   }
 
   return $output;
@@ -498,7 +547,7 @@ sub root { shift->{root} }
 
 =item B<passthru>
 
-  $output = passthru( $elem )
+  $output = $d->passthru( $elem )
 
 This handler should be assigned to all tags that do not
 need further processing. For example, in order to preserve
@@ -535,6 +584,51 @@ sub passthru {
   $attr_str &&= " $attr_str";
 
   return "<$tag$attr_str>$content</$tag>";
+}
+
+=item B<ignore>
+
+  $output = $d->ignore( $elem )
+
+This handler should be assigned to all tags that should be stripped
+from the HTML, only preserving their contents. For example, in order
+to remove SPAN tags but preserve the contents of SPAN tags:
+
+  use HTML::WikiConverter::Dialect 'ignore';
+
+  sub tag_handlers {
+    return {
+      span => \&ignore,
+      # ... other handlers
+    };
+  }
+
+This will effectively convert blocks like this:
+
+  <SPAN ID="thing" CLASS="place">
+  <B>UCLA</B>: <I>Los Angeles, CA</I>
+  </SPAN>
+
+into:
+
+  <B>UCLA</B>: <I>Los Angeles, CA</I>
+
+B<Note>: This is roughly equivalent to assigning the
+a tag the "[ '', '' ]" handler. Thus, the following two
+tag handler assignments are equivalent:
+
+    span => \&ignore
+
+    span => [ '', '' ]
+
+But specifying \&ignore is generally preferred (at least
+by me ;-) because it's a little more semantically clear.
+
+=cut
+
+sub ignore {
+  my( $self, $node ) = @_;
+  return $self->elem_contents($node);
 }
 
 =back
@@ -620,11 +714,29 @@ sub elem_style_attr_props {
 
   $bool = $d->elem_has_ancestor( $elem, $tag )
 
-Returns true if the specified HTML::Element has an ancestor element
-whose element tag matches $tag. The $tag parameter may be either a
-string corresponding to the name of the ancestor tag, or it may be a
-compiled regexp (qr//) with which to match. This is useful for
-determining if an element belongs to the specified tag.
+Returns a true value if the specified HTML::Element has an ancestor
+element whose tag matchecs $tag. The $tag parameter may be either a
+string corresponding to the name of the ancestor tag, or it may be
+a compiled regexp (using qr//) against which to match. This is useful
+for determining if an element belongs to the specified parent tag.
+
+The value returned may be either a string or a boolean depending on
+$tag. In particular, if $tag is a capturing regexp (e.g. "qw/h(\d)/")
+then if a match occurs, the first captured expression is returned.
+If a match occurs against a non-capturing regexp, than a true value
+is returned.
+
+For example, to see if the $elem element has an OL or a UL ancestor,
+you could use:
+
+  if( my $list_type = $d->elem_has_ancestor( $elem, qr/(ol|ul)/i ) ) {
+    my $bullet = $list_type eq 'ol' ? '#' : '*';
+    # ... etc
+  } else {
+    # not contained within a UL or OL
+  }
+
+(This example assumes $d is a wiki dialect.)
 
 =cut
 
@@ -636,7 +748,7 @@ sub elem_has_ancestor {
   # Force interpretation as regexp
   $tag = qr/^$tag$/i unless ref $tag eq 'Regexp';
 
-  $_->tag =~ $tag and return 1 foreach $elem->lineage;
+  $_->tag =~ $tag and return ( $1 ? $1 : 1 ) foreach $elem->lineage;
   return 0;
 }
 
@@ -746,20 +858,28 @@ sub list_nest_level {
 =item B<trim>
 
   use HTML::WikiConverter::Dialect 'trim';
-  trim( \$text )
+  trim( $text )
 
-Strips leading and trailing whitespace from $text. Modified $text in
-place, returning nothing.
+Strips leading and trailing whitespace from $text, which may be either
+a string or a reference to a string. If given a reference, the text
+will be trimmed in-place, and its value will be returned only if the
+trim function was not called in a void context. If given a string (i.e.
+not a reference), then the trimmed string will always be returned.
 
 =cut
 
 sub trim {
   my $text = shift;
-  $$text =~ s/^\s+//;
-  $$text =~ s/\s+$//;
 
-  # Ensure nothing's returned
-  return;
+  # Ensure we have a reference
+  my $src = ref $text ? $text : \$text;
+
+  # Trim whitespace
+  $$src =~ s/^\s+// if $$src;
+  $$src =~ s/\s+$// if $$src;
+
+  # Return trimmed text unless we're in void context
+  return defined wantarray ? $$src : undef;
 }
 
 1;

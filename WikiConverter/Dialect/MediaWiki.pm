@@ -3,14 +3,46 @@ package HTML::WikiConverter::Dialect::MediaWiki;
 use HTML::WikiConverter::Dialect qw(trim passthru);
 use base 'HTML::WikiConverter::Dialect';
 
+use warnings;
+use strict;
+
 use vars qw($VERSION);
-$VERSION = '0.16';
+$VERSION = '0.17';
 
 use HTML::Entities;
 use Image::Grab;
 use Image::Size;
 use URI::Escape 'uri_unescape';
 
+#
+# version: 0.17
+# date:    Wed July 07, 2004 10:58:19 PDT
+# changes:
+#   - lots of documentation additions
+#   - 'wikify_span' now removes elements intended
+#     only for URL expansion (as used by the MonoBook skin)
+#   - 'wikify_link' does not wikify anchor tags (i.e.
+#     A tags must have an HREF attribute)
+#   - bug fix: table heading markup like "! bgcolor=black !"
+#     is now properly generated as "! bgcolor=black |"
+#   - TH now accepts a colspan and rowspan attribute
+#   - "colspan=1" attribute is now stripped from table cells
+#     that only span a single column. Likewise for "rowspan"
+#     attribute
+#   - added "taxo_format" option to help format taxoboxes
+#   - align attribute is now preserved in TH and TD
+#   - add "add_nowiki" parameter for adding NOWIKI tags
+#     around {{messages}}
+#   - table caption handling using "|+" wiki table markup
+#   - better nested table handling; a newline is now added
+#     before the "{|" for nested tables
+#   - improved handling of image thumbnails -- image names
+#     like "200px-blahblahblah" refer to thumbnailed images,
+#     so "200px-" is now stripped off and "200px" is added
+#     to the list of attributes for the [[Image:]] markup
+#   - now uses warnings, strict
+#   - removed tons of warnings (thanks to cpan testers for
+#     revealing that there was a problem -- ID #147316)
 #
 # version: 0.16
 # date:    Sun May 23, 2004 12:06:52 PDT
@@ -36,55 +68,58 @@ sub new {
   $attr{convert_wplinks} = exists $attr{convert_wplinks} ? $attr{convert_wplinks} : 1;
   $attr{default_wplang}  = exists $attr{default_wplang}  ? $attr{default_wplang}  : 'en';
   $attr{pretty_tables}   = exists $attr{pretty_tables}   ? $attr{pretty_tables}   : 0;
+  $attr{taxo_format}     = exists $attr{taxo_format}     ? $attr{taxo_format}     : 0;
+  $attr{add_nowiki}      = exists $attr{add_nowiki}      ? $attr{add_nowiki}      : 0;
 
   return $pkg->SUPER::new( %attr );
 }
 
 sub tag_handlers {
   return {
-    b      => [ "'''" ],
-    strong => [ "'''" ],
-    i      => [ "''"  ],
-    em     => [ "''"  ],
-    hr     => "----",
+    b       => [ "'''", "'''" ],
+    strong  => [ "'''", "'''" ],
+    i       => [ "''",  "''" ],
+    em      => [ "''",  "''"  ],
+    hr      => "----",
 
     # Assumed to indicate indentation
-    dl     => [ '', "\n\n" ],
-    dt     => [ ';', '' ],
-    dd     => [ ':', '' ],
+    dl      => [ '', "\n\n" ],
+    dt      => [ ';', '' ],
+    dd      => [ ':', '' ],
 
     # Passthrough with valid XHTML
-    br     => "<br />",
+    br      => "<br />",
 
-    li     => \&wikify_list_item,
+    li      => \&wikify_list_item,
 
-    table  => \&wikify_table,
-    tr     => \&wikify_tr,
-    th     => \&wikify_th,
-    td     => \&wikify_td,
+    table   => \&wikify_table,
+    tr      => \&wikify_tr,
+    th      => \&wikify_th,
+    td      => \&wikify_td,
+    caption => \&wikify_caption,
 
-    div    => \&wikify_div,
-    img    => \&wikify_img,
-    span   => \&wikify_span,
-    a      => \&wikify_link,
+    div     => \&wikify_div,
+    img     => \&wikify_img,
+    span    => \&wikify_span,
+    a       => \&wikify_link,
 
-    h1     => \&wikify_h,
-    h2     => \&wikify_h,
-    h3     => \&wikify_h,
-    h4     => \&wikify_h,
-    h5     => \&wikify_h,
-    h6     => \&wikify_h,
+    h1      => \&wikify_h,
+    h2      => \&wikify_h,
+    h3      => \&wikify_h,
+    h4      => \&wikify_h,
+    h5      => \&wikify_h,
+    h6      => \&wikify_h,
 
-    font   => \&passthru,
-    sup    => \&passthru,
-    sub    => \&passthru,
+    font    => \&passthru,
+    sup     => \&passthru,
+    sub     => \&passthru,
 
-    center => \&passthru,
-    small  => \&passthru,
+    center  => \&passthru,
+    small   => \&passthru,
 
-    tt     => \&passthru,
-    pre    => \&passthru,
-    code   => \&passthru,
+    tt      => \&passthru,
+    pre     => \&passthru,
+    code    => \&passthru,
   };
 }
 
@@ -97,7 +132,11 @@ sub output {
   # to corresponding HTML entities)
   encode_entities( $output, "\200-\377" );
 
-  $self->escape_wikitext( \$output );
+  # Escape {{messages}}
+  if( $self->{add_nowiki} ) {
+    $self->escape_wikitext( \$output );
+  }
+
   return $output;
 }
 
@@ -194,6 +233,33 @@ sub tidy_whitespace {
   $$output =~ s{$unique\[(\d+)\]}{$pre_blocks[$1]}g;
 }
 
+sub wikify_text {
+  my( $self, $text, $parent ) = @_;
+  $text = $self->wikify_taxo( $text, $parent ) if $self->{taxo_format};
+  return $text;
+}
+
+sub wikify_taxo {
+  my( $self, $text, $parent ) = @_;
+
+  my %taxo = (
+    kingdom  => 'Regnum',
+    phylum   => 'Phylum',
+    class    => 'Classis',
+    order    => 'Ordo',
+    suborder => 'Subordo',
+    family   => 'Familia',
+    genus    => 'Genus',
+    species  => 'Species'
+  );
+
+  my $taxoterm = join '|', keys %taxo;
+
+  $text =~ s/($taxoterm):/'{{'.$taxo{lc $1}.'}}:'/ige;
+
+  return $text;
+}
+
 #
 # Tag handler: wikify_table( $elem )
 #
@@ -214,8 +280,22 @@ sub wikify_table {
 
   my @attrs = qw/cellpadding cellspacing border bgcolor align style class id/;
   my $output = "{| ".$self->elem_attr_str($node, @attrs)."\n";
+
+  if( $self->{table_caption} ) {
+    $output .= "|+ ".$self->{table_caption}."\n";
+    $self->{table_caption} = '';
+  }
+
   $output .= $self->elem_contents($node);
-  $output .= "|}\n\n";
+
+  trim( \$output );
+
+  $output .= "\n|}\n\n";
+
+  # If we're inside a TD, then add a newline before the "{|"
+  if( $self->elem_has_ancestor($node, 'td') ) {
+    $output = "\n$output";
+  }
 
   return $output;
 }
@@ -227,7 +307,7 @@ sub wikify_table {
 sub wikify_tr {
   my( $self, $node ) = @_;
   
-  if( $self->{pretty_tables} and not defined $node->left ) {
+  if( $self->{pretty_tables} and defined $node->left and $node->left->tag ne 'tr' ) {
     if( not $node->attr('bgcolor') ) {
       $node->attr( bgcolor => '#cccccc' );
     }
@@ -251,7 +331,12 @@ sub wikify_tr {
 sub wikify_td {
   my( $self, $node ) = @_;
 
-  my @attrs = qw/id style class bgcolor colspan rowspan/;
+  my @attrs = qw/id style class bgcolor align/;
+  
+  my $rowspan = $node->attr('rowspan') || 0;
+  my $colspan = $node->attr('colspan') || 0;
+  push @attrs, 'rowspan' if $rowspan > 1;
+  push @attrs, 'colspan' if $colspan > 1;
   my $attr_str = $self->elem_attr_str($node, @attrs);
   $attr_str .= " | " if $attr_str;
 
@@ -264,6 +349,15 @@ sub wikify_td {
   return "$output\n";
 }
 
+sub wikify_caption {
+  my( $self, $node ) = @_;
+  
+  $self->{table_caption} = $self->elem_contents($node)
+    if $self->elem_has_ancestor($node, 'table');
+
+  return '';
+}
+
 #
 # Tag handler: wikify_th( $elem )
 #
@@ -271,9 +365,15 @@ sub wikify_td {
 sub wikify_th {
   my( $self, $node ) = @_;
 
-  my @attrs = qw/id style class bgcolor/;
+  my @attrs = qw/id style class bgcolor align/;
+
+  my $rowspan = $node->attr('rowspan') || 0;
+  my $colspan = $node->attr('colspan') || 0;
+  push @attrs, 'rowspan' if $rowspan > 1;
+  push @attrs, 'colspan' if $colspan > 1;
+
   my $attr_str = $self->elem_attr_str($node, @attrs);
-  $attr_str .= " ! " if $attr_str;
+  $attr_str .= " | " if $attr_str;
 
   my $output = "! $attr_str";
   my $content = $self->elem_contents($node);
@@ -286,29 +386,6 @@ sub wikify_th {
 
 #
 # Tag handler: wikify_list_item( $elem )
-#
-# Note that because of the HTML syntax for specifying nested lists,
-# this method simply cannot return the wiki text for a single list
-# item if it contains nested lists. For example, $node contains the
-# equivalent of
-#
-#   <LI> one
-#     <UL>
-#       <LI> two
-#         <UL>
-#           <LI> three </LI>
-#         </UL>
-#       </LI>
-#     </UL>
-#   </LI>
-#
-# then this function will return
-#
-#   * one
-#   ** two
-#   *** three
-#
-# instead of "* one", which is what you may expect.
 #
 
 sub wikify_list_item {
@@ -334,7 +411,7 @@ sub wikify_list_item {
 
   if( $nested_list ) {
     foreach my $child ( @content_list ) {
-      last if $child == $nested_list;
+      last if $child eq $nested_list;
       push @nodes, $child;
     }
 
@@ -369,8 +446,14 @@ sub wikify_list_item {
 sub wikify_link {
   my( $self, $node ) = @_;
 
+  # Don't wikify anchors without an HREF attribute
+  my $contents = $self->elem_contents($node);
+  return trim($contents) if not $node->attr('href');
+
   my $url = $self->absolute_url( $node->attr('href') );
-  my $title = $self->elem_contents($node);
+  my $title = $contents;
+
+  return $title if $self->elem_is_img_link($node);
 
   # Trim title unless the only child of this node is an IMG tag
   my @contents = $node->content_list;
@@ -397,7 +480,7 @@ sub wikify_link {
     # Convert hex codes and HTML entities to single characters
     _fully_unescape( \$wiki_page );
 
-    my $lang_interwiki = ":$lang:" unless $lang eq $self->{default_wplang};
+    my $lang_interwiki = $lang eq $self->{default_wplang} ? '' : ":$lang:";
     return "[[$lang_interwiki$wiki_page]]" if $wiki_page eq $title;
 
     # Factor out common text in $wiki_page and $title and produce [[hand]]s link
@@ -420,8 +503,18 @@ sub wikify_link {
   return "[$url $title]";
 }
 
+sub elem_is_img_link {
+  my( $self, $node ) = @_;
+  my @contents = $node->content_list;
+  return 1 if @contents == 1 and ref $contents[0] and $contents[0]->tag eq 'img';
+  return 0;
+}
+
+#
 # In-place conversion of hex codes and HTML entities
 # into their single-character equivalents
+#
+
 sub _fully_unescape {
   my $src = shift;
   $$src = uri_unescape( $$src );
@@ -440,6 +533,8 @@ sub wikify_img {
 
   $self->log( "Processing IMG tag for SRC: ".$image_url->canonical."..." );
 
+#  return '' if $node->attr('alt') eq 'Enlarge';
+
   #
   # Grab attributes to be added to the [[Image:]] markup
   #
@@ -448,9 +543,14 @@ sub wikify_img {
   $image_div ||= $node->parent->parent if ref $node->parent and $self->elem_is_image_div( $node->parent->parent );
 
   my @attrs;
+
+  #
+  # Handle image right/left/center alignment
+  #
+
   if( $image_div ) {
-    my $css_style = $image_div->attr('style');
-    my $css_class = $image_div->attr('class');
+    my $css_style = $image_div->attr('style') || '';
+    my $css_class = $image_div->attr('class') || '';
     
     # Check for float attribute; if it's there,
     # then we'll add it to the [[Image:]] syntax
@@ -473,8 +573,9 @@ sub wikify_img {
   }
   
   #
-  # Check if we need to request a thumbnail of this
-  # image; it's needed if the specified width attribute
+  # Check for thumbnailing
+  # 
+  # It's needed if the specified width attribute
   # differs from the default size of the image
   #
 
@@ -492,7 +593,6 @@ sub wikify_img {
     my $buffer = $image->image;
     
     # Grab the width & height of the image
-
     my( $actual_w, $actual_h ) = imgsize( \$buffer );
     $self->log( "    Calculating size of image '$abs_url': $actual_w x $actual_h" );
 
@@ -505,6 +605,18 @@ sub wikify_img {
       $self->log( "    Adding 'thumb' and '${width}px' to list of attributes for [[Image:]] markup" );
       push @attrs, 'thumb';
       push @attrs, "${width}px";
+    }
+  } else {
+    # Check whether image name is something like "200px-BlahBlahBlah" -- if so, the
+    # "200px" means this is a thumbnailed image
+    $self->log( "  No WIDTH attribute specified; checking for a title like '200px-blahblahblah'" );
+    
+    if( $file =~ s/^(\d+px)\-// ) {
+      my $thumbsize = $1;
+      push @attrs, $thumbsize;
+      $self->log( "    Title matches /^\\d+px\-/" );
+      $self->log( "    Stripped '$1-' from filename" );
+      $self->log( "    Adding '$thumbsize' to list of attributes for [[Image:]] markup" );
     }
   }
 
@@ -527,10 +639,27 @@ sub wikify_img {
 # Tag handler: wikify_div( $elem )
 #
 
+# New thumbnail HTML:
+#
+#<div class="thumb tright">
+#  <div style="width:252px;">
+#    <a href="jpg"><img></a>
+#    <div class="thumbcaption">
+#      <div class="magnify">
+#        <a href="jpg"><img></a>
+#      </div>
+#    </div>
+#  </div>
+#</div>
+
 sub wikify_div {
   my( $self, $node ) = @_;
   
   my $contents = $self->elem_contents( $node );
+
+#  return '' if $node->attr('class') eq 'magnify';
+#  return '' if $node->attr('class') eq 'thumbcaption';
+#  return $contents if $node->attr('style') =~ /^width:\d+px;$/;
 
   # Image DIVs will be removed because the [[Image:image.jpg|...]]
   # syntax (see wikify_img) can specify this information
@@ -547,16 +676,20 @@ sub wikify_div {
 # Tag handler: wikify_span( $elem )
 #
 # Attempts to convert a SPAN tag into an equivalent FONT tag (since
-# some wikis do not allow SPAN tags, only FONT tags).
+# some wikis do not allow SPAN tags, only FONT tags). Also, strips
+# SPAN elements intended for URL expansion.
 #
 
 sub wikify_span {
   my( $self, $node ) = @_;
 
-  my $content = $self->elem_contents( $node );
+  # Remove element if it was intended only for URL expansion
+  my $class = $node->attr('class') || '';
+  return '' if trim($class) eq 'urlexpansion';
 
-  # Grab STYLE attribute
-  my $style = $node->attr('style');
+  #
+  # Convert SPAN style properties onto their FONT counterparts
+  #
 
   # Maps STYLE properties to FONT attributes
   my %style2font = (
@@ -564,24 +697,27 @@ sub wikify_span {
     'color'       => 'color',
   );
 
-  # Parse STYLE attribute
-  my $font_attr_str = '';
-  foreach my $prop ( split ';', $node->attr('style') ) {
-    my( $pname, $pval ) = split ':', $prop, 2;
-    $pname = lc $pname;
+  # Fetch hash mapping style property to its value
+  my %style = $self->elem_style_attr_props($node);
 
-    if( exists $style2font{$pname} and length $pval ) {
-      $font_attr_str .= " $style2font{$pname}=\"$pval\"" if length $pval;
-    }
+  # Convert STYLE properties to their FONT attribute counterparts
+  my $font_attr_str = '';
+  foreach my $prop ( keys %style ) {
+    my $lc_prop = lc $prop; # for keying into %style2font
+    next unless exists $style2font{$lc_prop} and length $style{$prop};
+    $font_attr_str .= " $style2font{$lc_prop}=\"$style{$prop}\"";
   }
 
-  # Grab CLASS and ID attributes too
+  # Some SPAN attributes are allowed
   for my $attr ( qw/class id/ ) {
     my $val = $node->attr($attr);
-    $font_attr_str .= " $attr=\"$val\"" if length $val;
+    $font_attr_str .= " $attr=\"$val\"" if $val and length $val;
   }
-  
-  # Convert into FONT tag if we have some valid attributes
+
+  # Grab element contents
+  my $content = $self->elem_contents( $node );
+
+  # Convert into FONT tag if we have some valid/allowed attributes
   return "<font$font_attr_str>$content</font>" if $font_attr_str;
 
   # Strip off SPAN tag otherwise
@@ -626,6 +762,8 @@ sub elem_is_image_div {
   # Return false if node is undefined or isn't a DIV at all
   return 0 if not defined $node or $node->tag !~ /(?:p|div)/;
 
+  return 1 if $node->attr('class') and $node->attr('class') =~ /^thumb/;
+
   # This counts the number of child nodes
   # that are either tags or are plain text
   # with at least one nonspace character
@@ -653,7 +791,7 @@ __END__
 
 =head1 NAME
 
-HTML::WikiConverter::Dialect::MediaWiki - convert HTML into MediaWiki markup
+HTML::WikiConverter::Dialect::MediaWiki - Dialect for conversion of HTML to MediaWiki markup
 
 =head1 SYNOPSIS
 
@@ -673,7 +811,7 @@ This module is the HTML::WikiConverter dialect for producing MediaWiki markup
 from HTML source. MediaWiki is a wiki engine, particularly well known because
 it is the wiki engine used by the free encyclopedia, Wikipedia.
 
-=head OPTIONS
+=head1 OPTIONS
 
 This module accepts a few options. You can pass them in to this module by
 including them when you construct a new HTML::WikiConverter:
@@ -681,13 +819,16 @@ including them when you construct a new HTML::WikiConverter:
   my $wc = new HTML::WikiConverter(
     html => $html,
     dialect => 'MediaWiki',
+    base_url => 'http://en.wikipedia.org',
 
     default_wplang  => 'en',
     convert_wplinks => 1,
     pretty_tables   => 1
   );
 
-The following options are allowed:
+In addition to the standard parameters that can be passed to any wiki
+dialect (including C<html>, and C<base_url>), this module also
+accepts:
 
 =over
 
@@ -767,6 +908,81 @@ borders. A "pretty table" looks like this:
   | ... etc
   |}
 
+=head1 FEATURES
+
+The MediaWiki dialect converts most HTML tags into their MediaWiki
+equivalents.
+
+=over
+
+=item Simple markup
+
+Tags such as B, STRONG, EM, and I are converted to their MediaWiki
+equivalents.
+
+=item Tables (nested tables not supported)
+
+TABLE tags and associated TR, TH, and TD tags are converted into
+"{|...|}" blocks. Nested tables are currently not supported at any
+reasonable level.
+
+=item Lists (nested lists are supported)
+
+Both unordered and ordered lists (UL and OL, respectively) are
+converted into their MediaWiki counterparts using an asterisk (*) to
+indicate a bulleted (unordered) list, and a pound sign (#) to
+represent a numbered (ordered) list.
+
+=item Indentation (and multiple-indentation)
+
+In the HTML source, indentation is accomplished with DL and DD
+tags. Indented blocks are prefixed with a colon (or multiple colons,
+for multiply-indented blocks) in the MediaWiki markup.
+
+=item Converts SPAN to FONT
+
+Where possible, SPAN tags are converted into their FONT equivalents.
+Some style properties present in the SPAN tag, including "font-family"
+and "color", are converted to FONT attributes. The "font-family"
+property is converted to a "face" attribute on the FONT tag, and the
+"color" property is converted to a "color" attribute.
+
+The "class" and "id" SPAN attributes are copied to the FONT tag.
+
+=item Headings (H1-H6)
+
+Headings tags (H1-H6) are replaced with symmetrical sequences of equal
+signs, with one equal sign per heading level (e.g. H1 gets a single
+equal sign, H6 gets six of them).
+
+=item Images (including thumbnails and their placement)
+
+IMG tags are converted to the appropriate [[Image:...]] markup, and
+the context of the IMG tag is used to add attributes to the resulting
+MediaWiki image markup. For example, if the IMG tag is enclosed in a
+DIV that specifies "float:right" for the STYLE attribute, then the
+"right" keyword is appended to the list of attributes in the image
+markup (e.g. "[[Image:thing.png|right]]").
+
+Additionally, thumbnail markup is generated if the IMG tag specifies a
+"width" attribute that differs from the actual width of the image as
+it's stored on the network.
+
+=item Line breaks
+
+HTML line breaks (BR tags) are converted to the XHTML-compatible
+"E<lt>br /E<gt>".
+
+=back
+
+=head1 KNOWN BUGS
+
+ Nested tables are not handled properly (or at all, really)
+
+ DIVs used to align images are not always properly recognized
+
+ Whether to pull an image of the network should be a configurable option
+
 =head1 COPYRIGHT
 
 Copyright (c) 2004 David J. Iberri
@@ -777,7 +993,5 @@ modify it under the same terms as Perl itself.
 =head1 AUTHOR
 
 David J. Iberri <diberri@yahoo.com>
-
-=head1 COPYRIGHT
 
 =cut

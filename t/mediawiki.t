@@ -1,5 +1,8 @@
-use Test::More tests => 29;
-my $v = 1; # verbose mode; set to 1 for more info
+use Test::More tests => 33;
+my $v = 0; # verbose mode; set to 1 for more info
+
+use warnings;
+use strict;
 
 BEGIN { use_ok( 'HTML::WikiConverter' ); }
 
@@ -18,13 +21,17 @@ my @html2wiki = (
   "PRE"             => "<PRE> one\n  two\n   three\n\n</PRE>"  => "  one\n   two\n    three\n \n ",
   "CENTER"          => "<CENTER>center</CENTER>"               => "<center>center</center>",
   "SMALL"           => "<SMALL>small</SMALL>"                  => "<small>small</small>",
+  "FONT"            => "<FONT COLOR=\"green\">colored</FONT>"  => "<font color=\"green\">colored</font>",
+  "SPAN->FONT (color)" => "<SPAN STYLE=\"color:green\">colored</SPAN>" => "<font color=\"green\">colored</font>",
+  "SPAN->FONT (face)"  => "<SPAN STYLE=\"font-family:Arial\">face</SPAN>" => "<font face=\"Arial\">face</font>",
+  "SPAN->FONT (both)"  => "<SPAN STYLE=\"font-family:Arial,Helvetica; color:green\">both</SPAN>" => "<font color=\"green\" face=\"Arial,Helvetica\">both</font>",
   "def list"        => "<DL><DT> Def </DT><DD> List</DD></DL>" => "; Def : List",
   "indent"          => "<DL><DD> Indent</DD></DT>"             => ": Indent",
   "double indent"   => "<DL><DD><DL><DD> double indent</DD></DL></DD></DL>" => ":: double indent",
-  "unknown tag"     => "<STUFF>what?</STUFF>"                  => "what?",
-  "wiki msg"        => "{{msg:stub}}"                          => "<nowiki>{{msg:stub}}</nowiki>",
+  "strip bad tag"   => "<STUFF>what?</STUFF>"                  => "what?",
+  "wiki msg"        => "{{stub}}"                              => "<nowiki>{{stub}}</nowiki>",
   "wiki magic"      => "{{NUMBEROFARTICLES}}"                  => "<nowiki>{{NUMBEROFARTICLES}}</nowiki>",
-  "wiki substr"     => "{{substr:notenglish}}"                 => "<nowiki>{{substr:notenglish}}</nowiki>",
+  "wiki subst"      => "{{subst:notenglish}}"                  => "<nowiki>{{subst:notenglish}}</nowiki>",
   "wiki link"       => '<a href="http://en.wikipedia.org/wiki/Place">Place</a>'  => '[[Place]]',
   "wiki link trail" => '<a href="http://en.wikipedia.org/wiki/Place">Places</a>' => '[[Place]]s',
   "wiki link case"  => '<a href="http://en.wikipedia.org/wiki/Place">place</a>'  => '[[place]]',
@@ -37,8 +44,10 @@ for( my $i = 0; $i < $#html2wiki-1; $i+=3 ) {
   my( $testname, $html, $wiki ) = @html2wiki[$i, $i+1, $i+2];
 
   my $wc = new HTML::WikiConverter(
-    dialect => 'MediaWiki',
-    html    => $html,
+    html       => $html,
+    dialect    => 'MediaWiki',
+    base_url   => 'http://en.wikipedia.org',
+    add_nowiki => 1
   );
 
   if( ! ok( $wc->output eq $wiki, $testname ) and $v ) {
@@ -59,9 +68,10 @@ foreach my $pair ( @pairs ) {
   $want =~ s/\s+$//;
 
   my $wc = new HTML::WikiConverter(
-    html => $html,
-    dialect => 'MediaWiki',
-    base_url => 'http://en.wikipedia.org'
+    html       => $html,
+    dialect    => 'MediaWiki',
+    base_url   => 'http://en.wikipedia.org',
+    add_nowiki => 1
   );
 
   my $testname = "realworld test ".$testnum++;
@@ -265,7 +275,7 @@ I'm Big Dave, a 23 year-old <a href="/wiki/UCLA" class='internal' title ="UCLA">
 I am a sensible <a href="/wiki/Christian" class='internal' title ="Christian">Christian</a>, and try to be sensitive to other religions and philosophies (after all, <a href="/wiki/Jesus_Christ" class='internal' title ="Jesus Christ">Jesus Christ</a> was a philosopher).
 
 <p>
-My social and political views most closely mirror those of <a href="/wiki/Bill_O%27Reilly_(commentator)" class='internal' title ="Bill O'Reilly (commentator)">Bill O'Reilly</a>: I am conservative with regard to <a href="/wiki/Abortion" class='internal' title ="Abortion">abortion</a> and the <a href="/wiki/First_Amendment" class='internal' title ="First Amendment">establishment clause</a>, but liberal vis-&agrave;-vis <a href="/wiki/Gay_marriage" class='internal' title ="Gay marriage">gay marriage</a> and the decriminalization of <a href="/wiki/Marijuana" class='internal' title ="Marijuana">marijuana</a>.
+My social and political views most closely mirror those of <a href="/wiki/Bill_O%27Reilly_(commentator)" class='internal' title ="Bill O'Reilly (commentator)">Bill O'Reilly</a>: I am conservative with regard to <a href="/wiki/Abortion" class='internal' title ="Abortion">abortion</a> and the <a href="/wiki/First_Amendment" class='internal' title ="First Amendment">establishment clause</a>, but liberal vis-a-vis <a href="/wiki/Gay_marriage" class='internal' title ="Gay marriage">gay marriage</a> and the decriminalization of <a href="/wiki/Marijuana" class='internal' title ="Marijuana">marijuana</a>.
 
 <p>
 I love the concept of Wikipedia, and believe that it is the next Big Thing<sup >&trade;</sup >. That's why I want Wikipedia to be as <a href="/wiki/Wikipedia:Guide_to_Layout" class='internal' title ="Wikipedia:Guide to Layout">presentable</a>, <a href="/wiki/Wikipedia:Accuracy_dispute" class='internal' title ="Wikipedia:Accuracy dispute">accurate</a>, <a href="/wiki/Wikipedia:Neutral_point_of_view" class='internal' title ="Wikipedia:Neutral point of view">NPOV</a>, and <a href="/wiki/Wikipedia:The_perfect_stub_article" class='internal' title ="Wikipedia:The perfect stub article">stub</a>-free as possible. So please don't take it personally if I criticize your edits or mark one of your pages for <a href="/wiki/Wikipedia:Deletion_policy" class='internal' title ="Wikipedia:Deletion policy">deletion</a>.
@@ -279,7 +289,7 @@ I do not believe there should be a <a href='http://tlh.wikipedia.org/' class='ex
 <span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=2";return false;'><h2><a name="WikiProject_Clinical_medicine"> WikiProject Clinical medicine </a></h2></span>
 
 <p>
-Though I'm not a <a href="/wiki/Physician" class='internal' title ="Physician">physician</a>, I would like to see a vast improvement of the medical topics covered by WP. <a href="/wiki/User:Jfdwolff" class='internal' title ="User:Jfdwolff">Jfdwolff</a> introduced the <a href="/wiki/User:Jfdwolff/WikiDoc" class='internal' title ="User:Jfdwolff/WikiDoc">WikiDoc</a> project (now <a href="/wiki/Wikipedia:WikiProject_Clinical_medicine" class='internal' title ="Wikipedia:WikiProject Clinical medicine">WikiProject Clinical medicine</a>), which aims to do just that. The first stage of work is apparently navigational, and includes that insertion of a "blue box" (via {{msg:medicine}}) into medical pages to tie them together.
+Though I'm not a <a href="/wiki/Physician" class='internal' title ="Physician">physician</a>, I would like to see a vast improvement of the medical topics covered by WP. <a href="/wiki/User:Jfdwolff" class='internal' title ="User:Jfdwolff">Jfdwolff</a> introduced the <a href="/wiki/User:Jfdwolff/WikiDoc" class='internal' title ="User:Jfdwolff/WikiDoc">WikiDoc</a> project (now <a href="/wiki/Wikipedia:WikiProject_Clinical_medicine" class='internal' title ="Wikipedia:WikiProject Clinical medicine">WikiProject Clinical medicine</a>), which aims to do just that. The first stage of work is apparently navigational, and includes that insertion of a "blue box" (via {{medicine}}) into medical pages to tie them together.
 
 
 <p>
@@ -296,63 +306,63 @@ Similar blue boxes are needed for articles in the basic sciences, <a href="/wiki
 <tr >
 <TD> <a href="/wiki/Human_anatomy" class='internal' title ="Human anatomy">Human organ systems</a>
 </TD><TD> <a href="/wiki/MediaWiki:Organ_systems" class='internal' title ="MediaWiki:Organ systems">MediaWiki:Organ systems</a>
-</TD><TD> {{msg:organ_systems}}
+</TD><TD> {{organ_systems}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Cardiovascular_system" class='internal' title ="Cardiovascular system">Cardiovascular system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Cardiovascular_system" class='internal' title ="MediaWiki:Cardiovascular system">MediaWiki:Cardiovascular system</a>
 
-</TD><TD> {{msg:cardiovascular_system}}
+</TD><TD> {{cardiovascular_system}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Digestive_system" class='internal' title ="Digestive system">Digestive system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Digestive_system" class='internal' title ="MediaWiki:Digestive system">MediaWiki:Digestive system</a>
-</TD><TD> {{msg:digestive_system}}
+</TD><TD> {{digestive_system}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Endocrine_system" class='internal' title ="Endocrine system">Endocrine system</a>
 
 </TD><TD> <a href="/wiki/MediaWiki:Endocrine_system" class='internal' title ="MediaWiki:Endocrine system">MediaWiki:Endocrine system</a>
-</TD><TD> {{msg:endocrine_system}}
+</TD><TD> {{endocrine_system}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Immune_system" class='internal' title ="Immune system">Immune system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Immune_system" class='internal' title ="MediaWiki:Immune system">MediaWiki:Immune system</a>
-</TD><TD> {{msg:immune_system}}
+</TD><TD> {{immune_system}}
 </TD></tr>
 <tr >
 
 <TD> <a href="/wiki/Integumentary_system" class='internal' title ="Integumentary system">Integumentary system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Integumentary_system" class='internal' title ="MediaWiki:Integumentary system">MediaWiki:Integumentary system</a>
-</TD><TD> {{msg:integumentary_system}}
+</TD><TD> {{integumentary_system}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Lymphatic_system" class='internal' title ="Lymphatic system">Lymphatic system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Lymphatic_system" class='internal' title ="MediaWiki:Lymphatic system">MediaWiki:Lymphatic system</a>
-</TD><TD> {{msg:lymphatic_system}}
+</TD><TD> {{lymphatic_system}}
 
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Muscular_system" class='internal' title ="Muscular system">Muscular system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Muscular_system" class='internal' title ="MediaWiki:Muscular system">MediaWiki:Muscular system</a>
-</TD><TD> {{msg:muscular_system}}
+</TD><TD> {{muscular_system}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Nervous_system" class='internal' title ="Nervous system">Nervous system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Nervous_system" class='internal' title ="MediaWiki:Nervous system">MediaWiki:Nervous system</a>
 
-</TD><TD> {{msg:nervous_system}}
+</TD><TD> {{nervous_system}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Reproductive_system" class='internal' title ="Reproductive system">Reproductive system</a>
 </TD><TD> <a href="/wiki/MediaWiki:Reproductive_system" class='internal' title ="MediaWiki:Reproductive system">MediaWiki:Reproductive system</a>
-</TD><TD> {{msg:reproductive_system}}
+</TD><TD> {{reproductive_system}}
 </TD></tr>
 <tr >
 <TD> <a href="/wiki/Urinary_system" class='internal' title ="Urinary system">Urinary system</a>
 
 </TD><TD> <a href="/wiki/MediaWiki:Urinary_system" class='internal' title ="MediaWiki:Urinary system">MediaWiki:Urinary system</a>
-</TD><TD> {{msg:urinary_system}}
+</TD><TD> {{urinary_system}}
 </TD></tr></table>
 
 
@@ -474,7 +484,7 @@ I'm Big Dave, a 23 year-old [[UCLA]] graduate with a bachelor's degree in [[Phys
 
 I am a sensible [[Christian]], and try to be sensitive to other religions and philosophies (after all, [[Jesus Christ]] was a philosopher).
 
-My social and political views most closely mirror those of [[Bill O'Reilly (commentator)|Bill O'Reilly]]: I am conservative with regard to [[abortion]] and the [[First Amendment|establishment clause]], but liberal vis-&agrave;-vis [[gay marriage]] and the decriminalization of [[marijuana]].
+My social and political views most closely mirror those of [[Bill O'Reilly (commentator)|Bill O'Reilly]]: I am conservative with regard to [[abortion]] and the [[First Amendment|establishment clause]], but liberal vis-a-vis [[gay marriage]] and the decriminalization of [[marijuana]].
 
 I love the concept of Wikipedia, and believe that it is the next Big Thing<sup>&acirc;&#132;&cent;</sup>. That's why I want Wikipedia to be as [[Wikipedia:Guide to Layout|presentable]], [[Wikipedia:Accuracy dispute|accurate]], [[Wikipedia:Neutral point of view|NPOV]], and [[Wikipedia:The perfect stub article|stub]]-free as possible. So please don't take it personally if I criticize your edits or mark one of your pages for [[Wikipedia:Deletion policy|deletion]].
 
@@ -482,7 +492,7 @@ I do not believe there should be a [http://tlh.wikipedia.org/ Klingon Wikipedia]
 
 == WikiProject Clinical medicine ==
 
-Though I'm not a [[physician]], I would like to see a vast improvement of the medical topics covered by WP. [[User:Jfdwolff|Jfdwolff]] introduced the [[User:Jfdwolff/WikiDoc|WikiDoc]] project (now [[Wikipedia:WikiProject Clinical medicine|WikiProject Clinical medicine]]), which aims to do just that. The first stage of work is apparently navigational, and includes that insertion of a "blue box" (via <nowiki>{{msg:medicine}}</nowiki>) into medical pages to tie them together.
+Though I'm not a [[physician]], I would like to see a vast improvement of the medical topics covered by WP. [[User:Jfdwolff|Jfdwolff]] introduced the [[User:Jfdwolff/WikiDoc|WikiDoc]] project (now [[Wikipedia:WikiProject Clinical medicine|WikiProject Clinical medicine]]), which aims to do just that. The first stage of work is apparently navigational, and includes that insertion of a "blue box" (via <nowiki>{{medicine}}</nowiki>) into medical pages to tie them together.
 
 Similar blue boxes are needed for articles in the basic sciences, [[anatomy]], [[physiology]], etc., so I'll be adding them soon. I'll start with some basic organ systems:
 
@@ -494,47 +504,47 @@ Similar blue boxes are needed for articles in the basic sciences, [[anatomy]], [
 |- 
 | [[Human anatomy|Human organ systems]]
 | [[MediaWiki:Organ systems]]
-| <nowiki>{{msg:organ_systems}}</nowiki>
+| <nowiki>{{organ_systems}}</nowiki>
 |- 
 | [[Cardiovascular system]]
 | [[MediaWiki:Cardiovascular system]]
-| <nowiki>{{msg:cardiovascular_system}}</nowiki>
+| <nowiki>{{cardiovascular_system}}</nowiki>
 |- 
 | [[Digestive system]]
 | [[MediaWiki:Digestive system]]
-| <nowiki>{{msg:digestive_system}}</nowiki>
+| <nowiki>{{digestive_system}}</nowiki>
 |- 
 | [[Endocrine system]]
 | [[MediaWiki:Endocrine system]]
-| <nowiki>{{msg:endocrine_system}}</nowiki>
+| <nowiki>{{endocrine_system}}</nowiki>
 |- 
 | [[Immune system]]
 | [[MediaWiki:Immune system]]
-| <nowiki>{{msg:immune_system}}</nowiki>
+| <nowiki>{{immune_system}}</nowiki>
 |- 
 | [[Integumentary system]]
 | [[MediaWiki:Integumentary system]]
-| <nowiki>{{msg:integumentary_system}}</nowiki>
+| <nowiki>{{integumentary_system}}</nowiki>
 |- 
 | [[Lymphatic system]]
 | [[MediaWiki:Lymphatic system]]
-| <nowiki>{{msg:lymphatic_system}}</nowiki>
+| <nowiki>{{lymphatic_system}}</nowiki>
 |- 
 | [[Muscular system]]
 | [[MediaWiki:Muscular system]]
-| <nowiki>{{msg:muscular_system}}</nowiki>
+| <nowiki>{{muscular_system}}</nowiki>
 |- 
 | [[Nervous system]]
 | [[MediaWiki:Nervous system]]
-| <nowiki>{{msg:nervous_system}}</nowiki>
+| <nowiki>{{nervous_system}}</nowiki>
 |- 
 | [[Reproductive system]]
 | [[MediaWiki:Reproductive system]]
-| <nowiki>{{msg:reproductive_system}}</nowiki>
+| <nowiki>{{reproductive_system}}</nowiki>
 |- 
 | [[Urinary system]]
 | [[MediaWiki:Urinary system]]
-| <nowiki>{{msg:urinary_system}}</nowiki>
+| <nowiki>{{urinary_system}}</nowiki>
 |}
 
 (If you have particularly strong convictions for or against the addition of these elements, please leave a message for me on my [[User talk:Diberri|talk page]].) These should appear on [[Wikipedia:MediaWiki custom elements]] when complete.

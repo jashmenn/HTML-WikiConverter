@@ -10,60 +10,18 @@ SYNOPSIS
       dialect => 'MediaWiki'
     );
 
-    print $wc->output, "\n";
+    print $wc->output;
 
 DESCRIPTION
 
-    HTML::WikiConverter provides simple conversion from HTML source to
-    wiki markup. A sample web interface is available at
+    HTML::WikiConverter converts HTML source to wiki markup in a
+    variety of different wiki dialects, including MediaWiki (the
+    wiki engine for Wikipedia.org). A sample web interface is
+    available at
 
       http://diberri.dyndns.org/html2wiki.html
 
-    if you would like to try the module before you install it.
-
-NEW IN VERSION 0.14
-
-    o Support for adding wiki dialects (e.g., MediaWiki, PhpWiki)
-
-FEATURES
-
-    In addition to converting most HTML tags into corresponding wiki
-    markup, HTML::WikiConverter offers a few extra features:
-
-    o Supports image thumbnails
-    
-      If an IMG tag is found with a WIDTH attribute that differs from
-      the actual width of the image, then the resulting [[Image:]]
-      markup will contain the "thumb" keyword followed by the
-      thumbnail width.
-
-    o Recognizes DIVs used to align images
-
-      If an IMG tag (or an IMG contained within an A tag) is the only
-      child element of a DIV that uses STYLE or CLASS to align the
-      image, then the alignment is taken from the DIV and placed in
-      the [[Image:]] markup.
-
-    o Supports table attributes
-    
-      Attributes for table tags (TABLE, TR, etc.) will be added
-      appropriately to the resulting table markup.
-
-    o Tidies wiki markup
-
-      Attempts to remove unnecessary (and often ugly) spacing between
-      chunks of HTML. Text contained within PRE tags is left
-      untouched.
-
-    o Supports Unicode
-
-      Translates high bit characters to their HTML entity equivalents,
-      in this module's first attempt at supporting Unicode.
-
-    o Supports separate wiki dialects
-
-      Translates HTML source into a variety of wiki dialects, with
-      plug-in interface using HTML::WikiConverter::Dialect.
+    for those who would like to try the module before installing.
 
 INSTALLATION
 
@@ -78,7 +36,8 @@ INSTALLATION
       > make test
       > make install
 
-    Installing wiki dialects is similar:
+    Installing wiki dialects is similar. For example, to
+    install the MediaWiki dialect:
 
       cpan> install HTML::WikiConverter::Dialect::MediaWiki
 

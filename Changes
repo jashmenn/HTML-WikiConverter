@@ -1,5 +1,34 @@
 # Change log for HTML::WikiConverter
 
+version: 0.17
+date:    Wed July 7 12:40:33 PDT 2004
+ - update test suite
+ - remove warnings reported by cpan testers
+ - lots of documentation additions
+ - MediaWiki changes:
+    - 'wikify_span' now removes elements intended
+      only for URL expansion (as used by the MonoBook skin)
+    - 'wikify_link' does not wikify anchor tags (i.e.
+      A tags must have an HREF attribute)
+    - bug fix: table heading markup like "! bgcolor=black !"
+      is now properly generated as "! bgcolor=black |"
+    - TH now accepts a colspan and rowspan attribute
+    - "colspan=1" attribute is now stripped from table cells
+      that only span a single column. Likewise for "rowspan"
+      attribute
+    - added "taxo_format" option to help format taxoboxes
+    - align attribute is now preserved in TH and TD
+    - add "add_nowiki" parameter for adding NOWIKI tags
+      around {{messages}}
+    - table caption handling using "|+" wiki table markup
+    - better nested table handling; a newline is now added
+      before the "{|" for nested tables
+    - improved handling of image thumbnails -- image names
+      like "200px-blahblahblah" refer to thumbnailed images,
+      so "200px-" is now stripped off and "200px" is added
+      to the list of attributes for the [[Image:]] markup
+    - now uses warnings, strict
+
 version: 0.16
 date:    Fri May 28 12:33:14 PDT 2004
  - Added 'elem_style_attr_props' method for parsing the STYLE attribute
@@ -10,6 +39,7 @@ date:    Fri May 28 12:33:14 PDT 2004
    as MediaWiki, P tags should not have any embedded newlines)
  - Fixed whitespace handling in H::W::Dialect
  - Documentation additions
+ - Added benchmarking option
  - MediaWiki: added colspan and rowspan to allowed TD attrs
  - MW: Now supports 'pretty_tables' option for making nice borders/shading
  - MW: Removed arbitrary 20-char limit in conversion of {{...}} magic
