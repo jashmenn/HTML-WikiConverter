@@ -1,612 +1,520 @@
-use Test::More tests => 33;
-my $v = 0; # verbose mode; set to 1 for more info
+use Test::More;
 
-use warnings;
-use strict;
+local $/;
+my @tests = split /\+\+\+\+\n/, <DATA>;
 
-BEGIN { use_ok( 'HTML::WikiConverter' ); }
+plan tests => scalar @tests;
 
-# Simple conversions
-my @html2wiki = (
-  "B"               => "<B>bold</B>"                           => "'''bold'''",
-  "STRONG"          => "<STRONG>strong</STRONG>"               => "'''strong'''",
-  "I"               => "<I>italic</I>"                         => "''italic''",
-  "EM"              => "<EM>emphasized</EM>"                   => "''emphasized''",
-  "B/I"             => "<B><I>bold/italic</I></B>"             => "'''''bold/italic'''''",
-  "I/B"             => "<I><B>italic/bold</B></I>"             => "'''''italic/bold'''''",
-  "HR"              => "<HR>"                                  => "----",
-  "BR"              => "line<BR>wrap"                          => "line<br />wrap",
-  "SUP"             => "x<SUP>2</SUP>"                         => "x<sup>2</sup>",
-  "SUB"             => "H<SUB>2</SUB>O"                        => "H<sub>2</sub>O",
-  "PRE"             => "<PRE> one\n  two\n   three\n\n</PRE>"  => "  one\n   two\n    three\n \n ",
-  "CENTER"          => "<CENTER>center</CENTER>"               => "<center>center</center>",
-  "SMALL"           => "<SMALL>small</SMALL>"                  => "<small>small</small>",
-  "FONT"            => "<FONT COLOR=\"green\">colored</FONT>"  => "<font color=\"green\">colored</font>",
-  "SPAN->FONT (color)" => "<SPAN STYLE=\"color:green\">colored</SPAN>" => "<font color=\"green\">colored</font>",
-  "SPAN->FONT (face)"  => "<SPAN STYLE=\"font-family:Arial\">face</SPAN>" => "<font face=\"Arial\">face</font>",
-  "SPAN->FONT (both)"  => "<SPAN STYLE=\"font-family:Arial,Helvetica; color:green\">both</SPAN>" => "<font color=\"green\" face=\"Arial,Helvetica\">both</font>",
-  "def list"        => "<DL><DT> Def </DT><DD> List</DD></DL>" => "; Def : List",
-  "indent"          => "<DL><DD> Indent</DD></DT>"             => ": Indent",
-  "double indent"   => "<DL><DD><DL><DD> double indent</DD></DL></DD></DL>" => ":: double indent",
-  "strip bad tag"   => "<STUFF>what?</STUFF>"                  => "what?",
-  "wiki msg"        => "{{stub}}"                              => "<nowiki>{{stub}}</nowiki>",
-  "wiki magic"      => "{{NUMBEROFARTICLES}}"                  => "<nowiki>{{NUMBEROFARTICLES}}</nowiki>",
-  "wiki subst"      => "{{subst:notenglish}}"                  => "<nowiki>{{subst:notenglish}}</nowiki>",
-  "wiki link"       => '<a href="http://en.wikipedia.org/wiki/Place">Place</a>'  => '[[Place]]',
-  "wiki link trail" => '<a href="http://en.wikipedia.org/wiki/Place">Places</a>' => '[[Place]]s',
-  "wiki link case"  => '<a href="http://en.wikipedia.org/wiki/Place">place</a>'  => '[[place]]',
-  "wiki link edit"  => '<a href="http://en.wikipedia.org/w/wiki.phtml?title=Place&action=edit">Place</a>' => '[[Place]]',
-  "list"            => "<UL><LI>list</LI></UL>"                => "* list",
-  "nested list"     => "<UL><LI> One<UL><LI> Two<UL><LI> Three </LI></UL></LI><LI> Two </LI></UL></LI><LI> One </LI></UL>" => "* One\n** Two\n*** Three\n** Two\n* One",
+use HTML::WikiConverter;
+my $wc = new HTML::WikiConverter(
+  dialect => 'MediaWiki',
+  base_uri => 'http://www.test.com'
 );
 
-for( my $i = 0; $i < $#html2wiki-1; $i+=3 ) {
-  my( $testname, $html, $wiki ) = @html2wiki[$i, $i+1, $i+2];
-
-  my $wc = new HTML::WikiConverter(
-    html       => $html,
-    dialect    => 'MediaWiki',
-    base_url   => 'http://en.wikipedia.org',
-    add_nowiki => 1
-  );
-
-  if( ! ok( $wc->output eq $wiki, $testname ) and $v ) {
-    _debug( $wc, $wiki, $testname );
-    my $got = $wc->output;
-  }
-}
-
-local $/ = undef;
-my $data = <DATA>;
-my @pairs = split '--SEPARATOR--', $data;
-
-my $testnum = 1;
-foreach my $pair ( @pairs ) {
-  my( $html, $want ) = split '--YIELDS--', $pair;
-
-  $want =~ s/^\s+//;
-  $want =~ s/\s+$//;
-
-  my $wc = new HTML::WikiConverter(
-    html       => $html,
-    dialect    => 'MediaWiki',
-    base_url   => 'http://en.wikipedia.org',
-    add_nowiki => 1
-  );
-
-  my $testname = "realworld test ".$testnum++;
-  if( ! ok( $wc->output eq $want, $testname ) and $v ) {
-    _debug( $wc, $want, $testname );
-  }
-}
-
-sub _debug {
-  my( $wc, $wiki, $testname ) = @_;
-  my $got = $wc->output;
-  my $rend = $wc->rendered_html;
-
-  eval {
-    require Text::Diff;
-    print Text::Diff::diff( \$got, \$wiki, { STYLE => 'Context' } );
-  };
-
-  print "rendered: $rend\n\n" if $v >= 2;
+foreach my $test ( @tests ) {
+  $test =~ s/^(.*?)\n//; my $name = $1;
+  my( $html, $wiki ) = split /\+\+/, $test;
+  for( $html, $wiki ) { s/^\s+//; s/\s+$// }
+  is( $wc->html2wiki($html), $wiki, $name );
 }
 
 __DATA__
-<HTML>
-<BODY>
+bold
+<html><b>bold</b></html>
+++
+'''bold'''
+++++
+italics
+<html><i>italics</i></html>
+++
+''italics''
+++++
+bold and italics
+<html><b>bold</b> and <i>italics</i></html>
+++
+'''bold''' and ''italics''
+++++
+bold-italics nested
+<html><b><i>bold-italics</i> nested</b></html>
+++
+'''''bold-italics'' nested'''
+++++
+strong
+<html><strong>strong</strong></html>
+++
+'''strong'''
+++++
+emphasized
+<html><em>emphasized</em></html>
+++
+''emphasized''
+++++
+underlined
+<html><u>underlined</u></html>
+++
+<u>underlined</u>
+++++
+strikethrough
+<html><s>strike</s></html>
+++
+<s>strike</s>
+++++
+deleted
+<html><del>deleted text</del></html>
+++
+<del>deleted text</del>
+++++
+inserted
+<html><ins>inserted</ins></html>
+++
+<ins>inserted</ins>
+++++
+span
+<html><span>span</span></html>
+++
+<span>span</span>
+++++
+strip aname
+<html><a name="thing"></a></html>
+++
 
-<H2> Basic features </H2>
+++++
+one-line phrasals
+<html><i>phrasals
+in one line</i></html>
+++
+''phrasals in one line''
+++++
+paragraph blocking
+<html><p>p1</p><p>p2</p></html>
+++
+p1
 
-<H3> Simple formatting </H3>
-
-<P>
-<B>Bold</B>, <I>italic</I>, <STRONG>strong</STRONG>, and <EM>emphasized</EM> text.
-</P>
-
-<H2> Cool features </H2>
-
-<H3> Supports image thumbnails: </P>
-
-<P>
-If an IMG tag is found with a WIDTH attribute that differs from the actual width of the image, then the resulting image markup will contain the "thumb" keyword followed by the thumbnail width
-</P>
-
-<IMG SRC="http://www.google.com/images/logo.gif" WIDTH=100 ALT="Google Logo">
-
-<H3> Recognizes DIVs used to align images </H3>
-
-<P>
-If an IMG tag (or an IMG contained within an A tag) is the only child element of a DIV that uses STYLE or CLASS to align the image, then the alignment is taken from the DIV and placed in the image markup
-</P>
-
-<DIV CLASS="floatright">
-<A HREF="/wiki/Image:Progesterone.png" CLASS="image" TITLE="Molecular diagram of progesterone"><IMG BORDER="0" SRC="/upload/a/ac/Progesterone.png" ALT="Molecular diagram of progesterone"></A>
-</DIV>
-
-<DIV STYLE="float:right">
-<IMG SRC="http://www.google.com/images/logo.gif" WIDTH=100 ALT="Google Logo">
-</DIV>
-
-<HR>
-
-<H3> Supports tables </H3>
-
-<P>
-Tables are converted into wikitext. Attributes for table tags (TABLE, TR, etc) will be added appropriately to the resulting wiki table markup 
-</P>
-
-<TABLE>
-  <TR>
-    <TH> Name </TH>
-    <TH> DOB </TH>
-  </TR>
-  <TR>
-    <TD> David </TD>
-    <TD> 1980 </TD>
-  </TR>
-  <TR>
-    <TD> Steve </TD>
-    <TD> 1983 </TD>
-  </TR>
-  <TR>
-    <TD> Eric </TD>
-    <TD> 1985 </TD>
-  </TR>
-</TABLE>
-
-<HR>
-
-<H3>Handles lists (nested ones, too!)</H3>
-
-<ul><li> one
-
-<ul><li> two
-
-<ul><li> three
-</li></ul>
-</li><li> four
-</li></ul>
-</li><li> five
-</li></ul>
-
-<HR>
-
-<H3>Tidies wikitext </H3>
-
-<P>
-Attempts to remove ugly (and unnecessary) spacing between chunks of HTML. Text contained within a PRE tag is left untouched 
-</P>
-
-<HR>
-
-<H3>Preformatted text</H3>
-
-<PRE> for( int i = 0; i < 10; i++ ) {
-  System.out.println( "Java? In a Perl program?" );
- }</PRE>
-
-<H2> Limitations </H2>
-
-<UL>
-  <LI> Cannot produce wiki tables with Perl heredoc syntax
-</UL>
-
-</BODY>
-</HTML>
---YIELDS--
-== Basic features ==
-
-=== Simple formatting ===
-
-'''Bold''', ''italic'', '''strong''', and ''emphasized'' text.
-
-== Cool features ==
-
-=== Supports image thumbnails: ===
-
-If an IMG tag is found with a WIDTH attribute that differs from the actual width of the image, then the resulting image markup will contain the "thumb" keyword followed by the thumbnail width
-
-[[Image:logo.gif|thumb|100px|Google Logo]]
-
-=== Recognizes DIVs used to align images ===
-
-If an IMG tag (or an IMG contained within an A tag) is the only child element of a DIV that uses STYLE or CLASS to align the image, then the alignment is taken from the DIV and placed in the image markup
-
-[[Image:Progesterone.png|right|Molecular diagram of progesterone]]
-
-[[Image:logo.gif|right|thumb|100px|Google Logo]]
-
+p2
+++++
+lists
+<html><ul><li>1</li><li>2</li></ul></html>
+++
+* 1
+* 2
+++++
+nested lists
+<html><ul><li>1<ul><li>1a</li><li>1b</li></ul></li><li>2</li></ul>
+++
+* 1
+** 1a
+** 1b
+* 2
+++++
+nested lists (different types)
+<html><ul><li>1<ul><li>a<ol><li>i</li></ol></li><li>b</li></ul></li><li>2<dl><dd>indented</dd></dl></li></ul></html>
+++
+* 1
+** a
+**# i
+** b
+* 2
+*: indented
+++++
+hr
+<html><hr /></html>
+++
 ----
-
-=== Supports tables ===
-
-Tables are converted into wikitext. Attributes for table tags (TABLE, TR, etc) will be added appropriately to the resulting wiki table markup 
-
-{| 
-|- 
-! Name
-! DOB
-|- 
+++++
+br
+<html><p>stuff<br />stuff two</p></html>
+++
+stuff<br />stuff two
+++++
+div
+<html><div>thing</div></html>
+++
+<div>thing</div>
+++++
+div w/ attrs
+<html><div id="name" class="panel" onclick="popup()">thing</div></html>
+++
+<div id="name" class="panel">thing</div>
+++++
+sub
+<html><p>H<sub>2</sub>O</p></html>
+++
+H<sub>2</sub>O
+++++
+sup
+<html><p>x<sup>2</sup></p></html>
+++
+x<sup>2</sup>
+++++
+center
+<html><center>centered text</center></html>
+++
+<center>centered text</center>
+++++
+small
+<html><small>small text</small></html>
+++
+<small>small text</small>
+++++
+code
+<html><code>$name = 'stan';</code></html>
+++
+<code>$name = 'stan';</code>
+++++
+tt
+<html><tt>tt text</tt></html>
+++
+<tt>tt text</tt>
+++++
+font
+<html><font color="blue" face="Arial" size="+2">font</font></html>
+++
+<font size="+2" color="blue" face="Arial">font</font>
+++++
+pre
+<html><pre>this
+  is
+    preformatted
+      text</pre></html>
+++
+ this
+   is
+     preformatted
+       text
+++++
+indent
+<html><dl><dd>indented text</dd></dl></html>
+++
+: indented text
+++++
+nested indent
+<html><dl><dd>stuff<dl><dd>double-indented</dd></dl></dd></dl></html>
+++
+: stuff
+:: double-indented
+++++
+h1
+<h1>h1</h1>
+++
+=h1=
+++++
+h2
+<h2>h2</h2>
+++
+==h2==
+++++
+h3
+<h3>h3</h3>
+++
+===h3===
+++++
+h4
+<h4>h4</h4>
+++
+====h4====
+++++
+h5
+<h5>h5</h5>
+++
+=====h5=====
+++++
+h6
+<h6>h6</h6>
+++
+======h6======
+++++
+img
+<html><img src="thing.gif" /></html>
+++
+[[Image:thing.gif]]
+++++
+tables
+<table>
+  <caption>Stuff</caption>
+  <tr>
+    <td> Name </td> <td> David </td>
+  </tr>
+  <tr>
+    <td> Age </td> <td> 24 </td>
+  </tr>
+  <tr>
+    <td> Height </td> <td> 6' </td>
+  </tr>
+  <tr>
+    <td>
+      <table>
+        <tr>
+          <td> Nested </td>
+          <td> tables </td>
+        </tr>
+        <tr>
+          <td> are </td>
+          <td> fun </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+++
+{|
+|+ Stuff
+|-
+| Name
 | David
-| 1980
-|- 
-| Steve
-| 1983
-|- 
-| Eric
-| 1985
+|-
+| Age
+| 24
+|-
+| Height
+| 6'
+|-
+|
+{|
+|-
+| Nested
+| tables
+|-
+| are
+| fun
+|}
+|}
+++++
+strip empty aname
+<html><a name="thing"></a> some text</html>
+++
+some text
+++++
+external links
+<html><a href="http://www.test.com">thing</a></html>
+++
+[http://www.test.com thing]
+++++
+external links (rel2abs)
+<html><a href="thing.html">thing</a></html>
+++
+[http://www.test.com/thing.html thing]
+++++
+complete example
+<html>
+<body>
+<hr />
+
+<p>
+Hello, my <i>name</i> is <b>Jonas</b>! I carry the <u>wind</u>.
+Thanks for <em>all</em> you've shown us...
+
+  <pre>Stuff <tt id='goes' class='text' onclick='openwin()'>goes</tt> here
+    and it's preformatted,
+      m'kay?</pre>
+
+Let's see how this paragraph was handled... Excellent! Now how about a
+link: Get <a href="http://www.getfirefox.com">Firefox</a> and free
+yourself from madness!
+
+</p>
+
+<ul>
+  <li> frog
+    <ul>
+      <li> pacman frog
+        <ol>
+          <li> mouth
+          <li> stomach
+        </ol>
+      </li>
+    </ul>
+  </li>
+  <li> mouse
+</ul>
+
+<img src="http://www.google.com/images/logo.gif"/>
+
+<ul>
+  <li>1
+    <ul>
+      <li>1a</li>
+      <li>1b</li>
+    </ul>
+  </li>
+  <li>2
+    <ul>
+      <li>2a
+        <ol>
+          <li>fee</li>
+          <li>fie</li>
+          <li>foe
+            <ul>
+              <li>fum</li>
+            </ul>
+          </li>
+        </ol>
+      </li>
+    </ul>
+  </li>
+  <li> e
+    <dl>
+      <dd>This is some fancy indented text</dd>
+    </dl>
+  </li>
+  <li>3
+    <dl>
+      <dt>Cookies</dt>
+      <dd>Delicious delicacies</dd>
+    </dl>
+  </li>
+</ul>
+
+<dl><dd> One
+<dl><dd> Two
+<dl><dd> Three
+</dd></dl>
+</dd></dl>
+</dd></dl>
+
+<dl>
+  <dt> Gubaba </dt>
+  <dd> See Diberri </dd>
+</dl>
+
+<h1>
+  Heading
+  One
+</h1>
+<p> Content of section one. </p>
+<h2> Heading </h2>
+<p> Section two content </p>
+<h3> Heading </h3>
+<p> Crazy section three! </p>
+
+<pre> Superman is my favorite superhero.
+   This is pre-
+     <i>formatted</i> text.
+       And you should be proud
+   that it's working.</pre>
+
+<ul>
+  <li> Do you <strong>love</strong> me? </li>
+  <li> <em>Do you love me?</em> </li>
+  <li> <b><i>It's a</i> boy!</b> </li>
+</ul>
+
+<table>
+  <caption>Stuff</caption>
+  <tr>
+    <td> Name </td> <td> David </td>
+  </tr>
+  <tr>
+    <td> Age </td> <td> 24 </td>
+  </tr>
+  <tr>
+    <td> Height </td> <td> 6' </td>
+  </tr>
+  <tr>
+    <td>
+      <table>
+        <tr>
+          <td> Nested </td>
+          <td> tables </td>
+        </tr>
+        <tr>
+          <td> are </td>
+          <td> fun </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<i>Phrasal elements can't span
+<b>more than
+one line.</b></i>
+
+</body>
+</html>
+++
+----
+
+Hello, my ''name'' is '''Jonas'''! I carry the <u>wind</u>. Thanks for ''all'' you've shown us...
+
+ Stuff <tt id="goes" class="text">goes</tt> here
+     and it's preformatted,
+       m'kay?
+
+Let's see how this paragraph was handled... Excellent! Now how about a link: Get [http://www.getfirefox.com Firefox] and free yourself from madness!
+
+* frog 
+** pacman frog 
+**# mouth 
+**# stomach 
+* mouse 
+
+[[Image:logo.gif]]
+
+* 1 
+** 1a
+** 1b 
+* 2 
+** 2a 
+**# fee
+**# fie
+**# foe 
+**#* fum 
+* e 
+*: This is some fancy indented text
+* 3 
+*; Cookies
+*: Delicious delicacies
+
+: One 
+:: Two 
+::: Three   
+
+; Gubaba 
+: See Diberri 
+
+=Heading One=
+
+Content of section one.
+
+==Heading==
+
+Section two content
+
+===Heading===
+
+Crazy section three!
+
+  Superman is my favorite superhero.
+    This is pre-
+      ''formatted'' text.
+        And you should be proud
+    that it's working.
+
+* Do you '''love''' me? 
+* ''Do you love me?'' 
+* '''''It's a'' boy!''' 
+
+{|
+|+ Stuff
+|-
+| Name
+| David
+|-
+| Age
+| 24
+|-
+| Height
+| 6'
+|-
+|
+{|
+|-
+| Nested
+| tables
+|-
+| are
+| fun
+|}
 |}
 
-----
-
-=== Handles lists (nested ones, too!) ===
-
-* one
-** two
-*** three
-** four
-* five
-
-----
-
-=== Tidies wikitext ===
-
-Attempts to remove ugly (and unnecessary) spacing between chunks of HTML. Text contained within a PRE tag is left untouched 
-
-----
-
-=== Preformatted text ===
-
- for( int i = 0; i < 10; i++ ) {
-  System.out.println( "Java? In a Perl program?" );
- }
-
-== Limitations ==
-
-* Cannot produce wiki tables with Perl heredoc syntax
---SEPARATOR--
-<p>
-I'm Big Dave, a 23 year-old <a href="/wiki/UCLA" class='internal' title ="UCLA">UCLA</a> graduate with a bachelor's degree in <a href="/wiki/Physiology" class='internal' title ="Physiology">physiological science</a> and a minor in <a href="/wiki/Cognitive_science" class='internal' title ="Cognitive science">cognitive science</a>. Right now I <a href="/wiki/Computer_programming" class='internal' title ="Computer programming">program</a> for the <a href='http://www.lacoe.edu' class='external' title="http://www.lacoe.edu">LA County Office of Education</a> while I <a href='http://www.gubaba.com/jlisa/' class='external' title="http://www.gubaba.com/jlisa/">research</a> and apply to <a href="/wiki/Medical_school" class='internal' title ="Medical school">medical school</a>. I made my 1000th edit to Wikipedia at 02:23 on <a href="/wiki/April_20" class='internal' title ="April 20">April 20</a>, <a href="/wiki/2004" class='internal' title ="2004">2004</a> <a href='http://en.wikipedia.org/w/wiki.phtml?title=Computed_axial_tomography&diff=0&oldid=3260827' class='external' title="http://en.wikipedia.org/w/wiki.phtml?title=Computed axial tomography&amp;diff=0&amp;oldid=3260827">[1]</a>.
-
-
-<p>
-I am a sensible <a href="/wiki/Christian" class='internal' title ="Christian">Christian</a>, and try to be sensitive to other religions and philosophies (after all, <a href="/wiki/Jesus_Christ" class='internal' title ="Jesus Christ">Jesus Christ</a> was a philosopher).
-
-<p>
-My social and political views most closely mirror those of <a href="/wiki/Bill_O%27Reilly_(commentator)" class='internal' title ="Bill O'Reilly (commentator)">Bill O'Reilly</a>: I am conservative with regard to <a href="/wiki/Abortion" class='internal' title ="Abortion">abortion</a> and the <a href="/wiki/First_Amendment" class='internal' title ="First Amendment">establishment clause</a>, but liberal vis-a-vis <a href="/wiki/Gay_marriage" class='internal' title ="Gay marriage">gay marriage</a> and the decriminalization of <a href="/wiki/Marijuana" class='internal' title ="Marijuana">marijuana</a>.
-
-<p>
-I love the concept of Wikipedia, and believe that it is the next Big Thing<sup >&trade;</sup >. That's why I want Wikipedia to be as <a href="/wiki/Wikipedia:Guide_to_Layout" class='internal' title ="Wikipedia:Guide to Layout">presentable</a>, <a href="/wiki/Wikipedia:Accuracy_dispute" class='internal' title ="Wikipedia:Accuracy dispute">accurate</a>, <a href="/wiki/Wikipedia:Neutral_point_of_view" class='internal' title ="Wikipedia:Neutral point of view">NPOV</a>, and <a href="/wiki/Wikipedia:The_perfect_stub_article" class='internal' title ="Wikipedia:The perfect stub article">stub</a>-free as possible. So please don't take it personally if I criticize your edits or mark one of your pages for <a href="/wiki/Wikipedia:Deletion_policy" class='internal' title ="Wikipedia:Deletion policy">deletion</a>.
-
-
-<p>
-I do not believe there should be a <a href='http://tlh.wikipedia.org/' class='external' title="http://tlh.wikipedia.org/">Klingon Wikipedia</a>.
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=2";return false;'><h2><a name="WikiProject_Clinical_medicine"> WikiProject Clinical medicine </a></h2></span>
-
-<p>
-Though I'm not a <a href="/wiki/Physician" class='internal' title ="Physician">physician</a>, I would like to see a vast improvement of the medical topics covered by WP. <a href="/wiki/User:Jfdwolff" class='internal' title ="User:Jfdwolff">Jfdwolff</a> introduced the <a href="/wiki/User:Jfdwolff/WikiDoc" class='internal' title ="User:Jfdwolff/WikiDoc">WikiDoc</a> project (now <a href="/wiki/Wikipedia:WikiProject_Clinical_medicine" class='internal' title ="Wikipedia:WikiProject Clinical medicine">WikiProject Clinical medicine</a>), which aims to do just that. The first stage of work is apparently navigational, and includes that insertion of a "blue box" (via {{medicine}}) into medical pages to tie them together.
-
-
-<p>
-Similar blue boxes are needed for articles in the basic sciences, <a href="/wiki/Anatomy" class='internal' title ="Anatomy">anatomy</a>, <a href="/wiki/Physiology" class='internal' title ="Physiology">physiology</a>, etc., so I'll be adding them soon. I'll start with some basic organ systems:
-
-<p>
-<table cellpadding=3 cellspacing=0 border=1 style="border-collapse:collapse">
-<tr >
-<TD bgcolor="#cccccc"> <strong>System</strong>
-</TD><TD bgcolor="#cccccc"> <strong>MediaWiki page</strong>
-</TD><TD bgcolor="#cccccc"> <strong>Wikitext</strong>
-
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Human_anatomy" class='internal' title ="Human anatomy">Human organ systems</a>
-</TD><TD> <a href="/wiki/MediaWiki:Organ_systems" class='internal' title ="MediaWiki:Organ systems">MediaWiki:Organ systems</a>
-</TD><TD> {{organ_systems}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Cardiovascular_system" class='internal' title ="Cardiovascular system">Cardiovascular system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Cardiovascular_system" class='internal' title ="MediaWiki:Cardiovascular system">MediaWiki:Cardiovascular system</a>
-
-</TD><TD> {{cardiovascular_system}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Digestive_system" class='internal' title ="Digestive system">Digestive system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Digestive_system" class='internal' title ="MediaWiki:Digestive system">MediaWiki:Digestive system</a>
-</TD><TD> {{digestive_system}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Endocrine_system" class='internal' title ="Endocrine system">Endocrine system</a>
-
-</TD><TD> <a href="/wiki/MediaWiki:Endocrine_system" class='internal' title ="MediaWiki:Endocrine system">MediaWiki:Endocrine system</a>
-</TD><TD> {{endocrine_system}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Immune_system" class='internal' title ="Immune system">Immune system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Immune_system" class='internal' title ="MediaWiki:Immune system">MediaWiki:Immune system</a>
-</TD><TD> {{immune_system}}
-</TD></tr>
-<tr >
-
-<TD> <a href="/wiki/Integumentary_system" class='internal' title ="Integumentary system">Integumentary system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Integumentary_system" class='internal' title ="MediaWiki:Integumentary system">MediaWiki:Integumentary system</a>
-</TD><TD> {{integumentary_system}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Lymphatic_system" class='internal' title ="Lymphatic system">Lymphatic system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Lymphatic_system" class='internal' title ="MediaWiki:Lymphatic system">MediaWiki:Lymphatic system</a>
-</TD><TD> {{lymphatic_system}}
-
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Muscular_system" class='internal' title ="Muscular system">Muscular system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Muscular_system" class='internal' title ="MediaWiki:Muscular system">MediaWiki:Muscular system</a>
-</TD><TD> {{muscular_system}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Nervous_system" class='internal' title ="Nervous system">Nervous system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Nervous_system" class='internal' title ="MediaWiki:Nervous system">MediaWiki:Nervous system</a>
-
-</TD><TD> {{nervous_system}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Reproductive_system" class='internal' title ="Reproductive system">Reproductive system</a>
-</TD><TD> <a href="/wiki/MediaWiki:Reproductive_system" class='internal' title ="MediaWiki:Reproductive system">MediaWiki:Reproductive system</a>
-</TD><TD> {{reproductive_system}}
-</TD></tr>
-<tr >
-<TD> <a href="/wiki/Urinary_system" class='internal' title ="Urinary system">Urinary system</a>
-
-</TD><TD> <a href="/wiki/MediaWiki:Urinary_system" class='internal' title ="MediaWiki:Urinary system">MediaWiki:Urinary system</a>
-</TD><TD> {{urinary_system}}
-</TD></tr></table>
-
-
-<p>
-(If you have particularly strong convictions for or against the addition of these elements, please leave a message for me on my <a href="/wiki/User_talk:Diberri" class='internal' title ="User talk:Diberri">talk page</a>.) These should appear on <a href="/wiki/Wikipedia:MediaWiki_custom_elements" class='internal' title ="Wikipedia:MediaWiki custom elements">Wikipedia:MediaWiki custom elements</a> when complete.
-
-<p>
-On a related note, <a href="/wiki/User:Fuelbottle" class='internal' title ="User:Fuelbottle">Fuelbottle</a> has done some great work in creating blue boxes for organs themselves. So now, organs like the <a href="/wiki/Pituitary_gland" class='internal' title ="Pituitary gland">pituitary gland</a> get their own article series box footer. Fuelbottle's ASB work can be seen at <a href="/wiki/User:Fuelbottle/footers" class='internal' title ="User:Fuelbottle/footers">User:Fuelbottle/footers</a> and <a href="/wiki/User:Fuelbottle/boxtest" class='internal' title ="User:Fuelbottle/boxtest">User:Fuelbottle/boxtest</a>.
-
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=3";return false;'><h2><a name="Recent_activity"> Recent activity </a></h2></span>
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=4";return false;'><h3><a name="In_progress"> In progress </a></h3></span>
-
-<p>
-
-<ul><li> Writing simple HTML to wikitext converter, available at <a href="http://diberri.dyndns.org/html2wiki.html" class='external' title="http://diberri.dyndns.org/html2wiki.html">http://diberri.dyndns.org/html2wiki.html</a>
-
-</li><li> Requesting permission from <a href='http://adam.com' class='external' title="http://adam.com">Adam.com</a> to use images from the <a href='http://www.nlm.nih.gov/medlineplus/encyclopedia.html' class='external' title="http://www.nlm.nih.gov/medlineplus/encyclopedia.html">MedlinePlus Encyclopedia</a> (As of 5/23/04, there's been no response. I'm assuming permission has been denied.)
-</li></ul>
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=5";return false;'><h3><a name="Complete"> Complete </a></h3></span>
-
-<p>
-
-<ul><li> Removed MedlinePlus images from my articles that use them (per <a href="/wiki/User:The_Anome" class='internal' title ="User:The Anome">The Anome</a>'s message to me that these images are copyrighted)
-</li></ul>
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=6";return false;'><h2><a name="Significant_contributions"> Significant contributions </a></h2></span>
-
-<p>
-Apparently the kids these days like to show off their contributions to Wikipedia. Allow me to jump on the bandwagon. Here are a few of my most significant contributions (either I wrote the article, or it's composed mainly of my text).
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=7";return false;'><h3><a name="Anatomy/physiology"> Anatomy/physiology </a></h3></span>
-
-<p>
-
-<ul><li> <a href="/wiki/Adrenal_gland" class='internal' title ="Adrenal gland">Adrenal gland</a>
-</li><li> <a href="/wiki/Cholecystokinin" class='internal' title ="Cholecystokinin">Cholecystokinin</a>
-</li><li> <a href="/wiki/Distal_convoluted_tubule" class='internal' title ="Distal convoluted tubule">Distal convoluted tubule</a>
-
-</li><li> <a href="/wiki/Ectopic_pregnancy" class='internal' title ="Ectopic pregnancy">Ectopic pregnancy</a>
-</li><li> <a href="/wiki/Fetal_hemoglobin" class='internal' title ="Fetal hemoglobin">Fetal hemoglobin</a>
-</li><li> <a href="/wiki/Human_chorionic_gonadotropin" class='internal' title ="Human chorionic gonadotropin">Human chorionic gonadotropin</a>
-</li><li> <a href="/wiki/Starvation" class='internal' title ="Starvation">Starvation</a>
-</li><li> <a href="/wiki/Umbilical_vein" class='internal' title ="Umbilical vein">Umbilical vein</a>
-
-</li></ul>
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=8";return false;'><h3><a name="Animals"> Animals </a></h3></span>
-
-<p>
-
-<ul><li> <em><a href="/wiki/Aplysia_californica" class='internal' title ="Aplysia californica">Aplysia californica</a></em>
-</li><li> <a href="/wiki/Colorado_potato_beetle" class='internal' title ="Colorado potato beetle">Colorado potato beetle</a>
-
-</li><li> <a href="/wiki/Cranwell%27s_horned_frog" class='internal' title ="Cranwell's horned frog">Cranwell's horned frog</a>
-</li><li> <a href="/wiki/Jerusalem_cricket" class='internal' title ="Jerusalem cricket">Jerusalem cricket</a>
-</li></ul>
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=9";return false;'><h3><a name="Neuroscience"> Neuroscience </a></h3></span>
-
-<p>
-
-<ul><li> <a href="/wiki/Anterior_pituitary" class='internal' title ="Anterior pituitary">Anterior pituitary</a>
-</li><li> <a href="/wiki/F_wave" class='internal' title ="F wave">F wave</a>
-</li><li> <a href="/wiki/Glial_cell" class='internal' title ="Glial cell">Glial cell</a>
-</li><li> <a href="/wiki/Hebbian_theory" class='internal' title ="Hebbian theory">Hebbian theory</a>
-</li><li> <a href="/wiki/Long-term_potentiation" class='internal' title ="Long-term potentiation">Long-term potentiation</a>
-</li><li> <a href="/wiki/Motoneuron" class='internal' title ="Motoneuron">Motor neuron</a>
-
-</li><li> <a href="/wiki/Posterior_pituitary" class='internal' title ="Posterior pituitary">Posterior pituitary</a>
-</li><li> <a href="/wiki/Silent_synapse" class='internal' title ="Silent synapse">Silent synapse</a>
-</li></ul>
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=10";return false;'><h3><a name="Pathology"> Pathology </a></h3></span>
-
-<p>
-
-<ul><li> <a href="/wiki/Glucagonoma" class='internal' title ="Glucagonoma">Glucagonoma</a>
-
-</li><li> <a href="/wiki/Mitral_valve_prolapse" class='internal' title ="Mitral valve prolapse">Mitral valve prolapse</a>
-</li><li> <a href="/wiki/Patent_ductus_arteriosus" class='internal' title ="Patent ductus arteriosus">Patent ductus arteriosus</a>
-</li><li> <a href="/wiki/Swyer_syndrome" class='internal' title ="Swyer syndrome">Swyer syndrome</a>
-</li></ul>
-
-<p>
-
-<span onContextMenu='document.location="/w/wiki.phtml?title=User%3ADiberri&amp;action=edit&amp;section=11";return false;'><h3><a name="Other"> Other </a></h3></span>
-
-<p>
-
-<ul><li> <a href="/wiki/Allosteric" class='internal' title ="Allosteric">Allosteric</a>
-</li><li> <a href="/wiki/Chemical_oxygen_demand" class='internal' title ="Chemical oxygen demand">Chemical oxygen demand</a>
-</li><li> <a href="/wiki/List_of_MCAT_topics" class='internal' title ="List of MCAT topics">List of MCAT topics</a>
-</li><li> <a href="/wiki/Lorenzo%27s_oil" class='internal' title ="Lorenzo's oil">Lorenzo's oil</a> (and the <a href="/wiki/Lorenzo%27s_Oil_(movie)" class='internal' title ="Lorenzo's Oil (movie)">movie</a>)
-
-</li><li> <a href="/wiki/Rubrication" class='internal' title ="Rubrication">Rubrication</a>
-</li><li> <em><a href="/wiki/Theologico-Political_Treatise" class='internal' title ="Theologico-Political Treatise">Theologico-Political Treatise</a></em>
-</li></ul>
---YIELDS--
-I'm Big Dave, a 23 year-old [[UCLA]] graduate with a bachelor's degree in [[Physiology|physiological science]] and a minor in [[cognitive science]]. Right now I [[Computer programming|program]] for the [http://www.lacoe.edu LA County Office of Education] while I [http://www.gubaba.com/jlisa/ research] and apply to [[medical school]]. I made my 1000th edit to Wikipedia at 02:23 on [[April 20]], [[2004]] [http://en.wikipedia.org/w/wiki.phtml?title=Computed_axial_tomography&diff=0&oldid=3260827].
-
-I am a sensible [[Christian]], and try to be sensitive to other religions and philosophies (after all, [[Jesus Christ]] was a philosopher).
-
-My social and political views most closely mirror those of [[Bill O'Reilly (commentator)|Bill O'Reilly]]: I am conservative with regard to [[abortion]] and the [[First Amendment|establishment clause]], but liberal vis-a-vis [[gay marriage]] and the decriminalization of [[marijuana]].
-
-I love the concept of Wikipedia, and believe that it is the next Big Thing<sup>&acirc;&#132;&cent;</sup>. That's why I want Wikipedia to be as [[Wikipedia:Guide to Layout|presentable]], [[Wikipedia:Accuracy dispute|accurate]], [[Wikipedia:Neutral point of view|NPOV]], and [[Wikipedia:The perfect stub article|stub]]-free as possible. So please don't take it personally if I criticize your edits or mark one of your pages for [[Wikipedia:Deletion policy|deletion]].
-
-I do not believe there should be a [http://tlh.wikipedia.org/ Klingon Wikipedia].
-
-== WikiProject Clinical medicine ==
-
-Though I'm not a [[physician]], I would like to see a vast improvement of the medical topics covered by WP. [[User:Jfdwolff|Jfdwolff]] introduced the [[User:Jfdwolff/WikiDoc|WikiDoc]] project (now [[Wikipedia:WikiProject Clinical medicine|WikiProject Clinical medicine]]), which aims to do just that. The first stage of work is apparently navigational, and includes that insertion of a "blue box" (via <nowiki>{{medicine}}</nowiki>) into medical pages to tie them together.
-
-Similar blue boxes are needed for articles in the basic sciences, [[anatomy]], [[physiology]], etc., so I'll be adding them soon. I'll start with some basic organ systems:
-
-{| cellpadding="3" cellspacing="0" border="1" style="border-collapse:collapse"
-|- 
-| bgcolor="#cccccc" | '''System'''
-| bgcolor="#cccccc" | '''MediaWiki page'''
-| bgcolor="#cccccc" | '''Wikitext'''
-|- 
-| [[Human anatomy|Human organ systems]]
-| [[MediaWiki:Organ systems]]
-| <nowiki>{{organ_systems}}</nowiki>
-|- 
-| [[Cardiovascular system]]
-| [[MediaWiki:Cardiovascular system]]
-| <nowiki>{{cardiovascular_system}}</nowiki>
-|- 
-| [[Digestive system]]
-| [[MediaWiki:Digestive system]]
-| <nowiki>{{digestive_system}}</nowiki>
-|- 
-| [[Endocrine system]]
-| [[MediaWiki:Endocrine system]]
-| <nowiki>{{endocrine_system}}</nowiki>
-|- 
-| [[Immune system]]
-| [[MediaWiki:Immune system]]
-| <nowiki>{{immune_system}}</nowiki>
-|- 
-| [[Integumentary system]]
-| [[MediaWiki:Integumentary system]]
-| <nowiki>{{integumentary_system}}</nowiki>
-|- 
-| [[Lymphatic system]]
-| [[MediaWiki:Lymphatic system]]
-| <nowiki>{{lymphatic_system}}</nowiki>
-|- 
-| [[Muscular system]]
-| [[MediaWiki:Muscular system]]
-| <nowiki>{{muscular_system}}</nowiki>
-|- 
-| [[Nervous system]]
-| [[MediaWiki:Nervous system]]
-| <nowiki>{{nervous_system}}</nowiki>
-|- 
-| [[Reproductive system]]
-| [[MediaWiki:Reproductive system]]
-| <nowiki>{{reproductive_system}}</nowiki>
-|- 
-| [[Urinary system]]
-| [[MediaWiki:Urinary system]]
-| <nowiki>{{urinary_system}}</nowiki>
-|}
-
-(If you have particularly strong convictions for or against the addition of these elements, please leave a message for me on my [[User talk:Diberri|talk page]].) These should appear on [[Wikipedia:MediaWiki custom elements]] when complete.
-
-On a related note, [[User:Fuelbottle|Fuelbottle]] has done some great work in creating blue boxes for organs themselves. So now, organs like the [[pituitary gland]] get their own article series box footer. Fuelbottle's ASB work can be seen at [[User:Fuelbottle/footers]] and [[User:Fuelbottle/boxtest]].
-
-== Recent activity ==
-
-=== In progress ===
-
-* Writing simple HTML to wikitext converter, available at http://diberri.dyndns.org/html2wiki.html
-* Requesting permission from [http://adam.com Adam.com] to use images from the [http://www.nlm.nih.gov/medlineplus/encyclopedia.html MedlinePlus Encyclopedia] (As of 5/23/04, there's been no response. I'm assuming permission has been denied.)
-
-=== Complete ===
-
-* Removed MedlinePlus images from my articles that use them (per [[User:The Anome|The Anome]]'s message to me that these images are copyrighted)
-
-== Significant contributions ==
-
-Apparently the kids these days like to show off their contributions to Wikipedia. Allow me to jump on the bandwagon. Here are a few of my most significant contributions (either I wrote the article, or it's composed mainly of my text).
-
-=== Anatomy/physiology ===
-
-* [[Adrenal gland]]
-* [[Cholecystokinin]]
-* [[Distal convoluted tubule]]
-* [[Ectopic pregnancy]]
-* [[Fetal hemoglobin]]
-* [[Human chorionic gonadotropin]]
-* [[Starvation]]
-* [[Umbilical vein]]
-
-=== Animals ===
-
-* ''[[Aplysia californica]]''
-* [[Colorado potato beetle]]
-* [[Cranwell's horned frog]]
-* [[Jerusalem cricket]]
-
-=== Neuroscience ===
-
-* [[Anterior pituitary]]
-* [[F wave]]
-* [[Glial cell]]
-* [[Hebbian theory]]
-* [[Long-term potentiation]]
-* [[Motoneuron|Motor neuron]]
-* [[Posterior pituitary]]
-* [[Silent synapse]]
-
-=== Pathology ===
-
-* [[Glucagonoma]]
-* [[Mitral valve prolapse]]
-* [[Patent ductus arteriosus]]
-* [[Swyer syndrome]]
-
-=== Other ===
-
-* [[Allosteric]]
-* [[Chemical oxygen demand]]
-* [[List of MCAT topics]]
-* [[Lorenzo's oil]] (and the [[Lorenzo's Oil (movie)|movie]])
-* [[Rubrication]]
-* ''[[Theologico-Political Treatise]]''
+''Phrasal elements can't span '''more than one line.'''''

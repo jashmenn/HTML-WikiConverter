@@ -1,8 +1,16 @@
-Changes
 Makefile.PL
 MANIFEST
 README
-t/mediawiki.t
-WikiConverter/Dialect.pm
-WikiConverter/Dialect/MediaWiki.pm
 WikiConverter.pm
+WikiConverter/Kwiki.pm
+WikiConverter/MediaWiki.pm
+WikiConverter/MoinMoin.pm
+WikiConverter/PhpWiki.pm
+WikiConverter/UseMod.pm
+t/1.t
+t/kwiki.t
+t/mediawiki.t
+t/moinmoin.t
+t/phpwiki.t
+t/usemod.t
+META.yml                                 Module meta-data (added by MakeMaker)
