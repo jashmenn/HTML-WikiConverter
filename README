@@ -1,0 +1,76 @@
+NAME
+    HTML::WikiConverter - An HTML-to-wiki markup converter
+
+SYNOPSIS
+
+    use HTML::WikiConverter;
+
+    my $wc = new HTML::WikiConverter(
+      html => $html_source
+    );
+
+    print $wc->output, "\n";
+
+DESCRIPTION
+
+    HTML::WikiConverter provides simple conversion from HTML source to
+    wiki markup. A sample web interface is available at
+
+      http://diberri.dyndns.org/html2wiki.html
+
+    if you would like to try the module before you install it.
+
+FEATURES
+
+    In addition to converting most HTML tags into corresponding wiki
+    markup, HTML::WikiConverter offers a few extra features:
+
+    o Supports image thumbnails
+    
+      If an IMG tag is found with a WIDTH attribute that differs from
+      the actual width of the image, then the resulting [[Image:]]
+      markup will contain the "thumb" keyword followed by the
+      thumbnail width.
+
+    o Recognizes DIVs used to align images
+
+      If an IMG tag (or an IMG contained within an A tag) is the only
+      child element of a DIV that uses STYLE or CLASS to align the
+      image, then the alignment is taken from the DIV and placed in
+      the [[Image:]] markup.
+
+    o Supports table attributes
+    
+      Attributes for table tags (TABLE, TR, etc.) will be added
+      appropriately to the resulting table markup.
+
+    o Tidies wiki markup
+
+      Attempts to remove unnecessary (and often ugly) spacing between
+      chunks of HTML. Text contained within PRE tags is left
+      untouched.
+
+INSTALLATION
+
+    The simplest way to install is via the CPAN shell:
+
+      cpan> install HTML::WikiConverter
+
+    The next best thing is:
+
+      > perl Makefile.PL
+      > make
+      > make test
+      > make install
+
+AUTHOR
+    David J. Iberri <diberri@yahoo.com>
+
+COPYRIGHT
+    Copyright (c) 2004 David J. Iberri
+
+    This program is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
+    See http://www.perl.com/perl/misc/Artistic.html
+
