@@ -4,8 +4,9 @@ use warnings;
 use strict;
 
 use vars qw( $VERSION );
-$VERSION = '0.10';
+$VERSION = '0.12';
 
+use HTML::Entities;
 use HTML::PrettyPrinter;
 use HTML::TreeBuilder;
 use Image::Grab;
@@ -84,9 +85,14 @@ sub new {
       # wikify methods)
       pre    => [ "<pre>", "</pre>" ],
 
-      p      => \&wikify_p,
-      ul     => \&wikify_list_start,
-      ol     => \&wikify_list_start,
+      dl     => [ '', "\n\n" ],
+      dt     => [ ';', '' ],
+      dd     => [ ':', '' ],
+
+      p      => [ "\n\n", "\n\n" ],
+      ul     => [ '', "\n" ],
+      ol     => [ '', "\n" ],
+
       li     => \&wikify_list_item,
       table  => \&wikify_table,
       tr     => \&wikify_tr,
@@ -95,23 +101,31 @@ sub new {
       div    => \&wikify_div,
       img    => \&wikify_img,
       a      => \&wikify_link,
+      span   => \&wikify_span,
 
-      h1     => \&wikify_heading,
-      h2     => \&wikify_heading,
-      h3     => \&wikify_heading,
-      h4     => \&wikify_heading,
-      h5     => \&wikify_heading,
-      h6     => \&wikify_heading,
+      h1     => \&wikify_h,
+      h2     => \&wikify_h,
+      h3     => \&wikify_h,
+      h4     => \&wikify_h,
+      h5     => \&wikify_h,
+      h6     => \&wikify_h,
+
+      font   => \&wikify_default,
+      sup    => \&wikify_default,
+      sub    => \&wikify_default,
+      nowiki => \&wikify_default,
     }
   }, $pkg;
 
+  # Configure up the tree builder
   $self->{root}->implicit_tags(1);
   $self->{root}->implicit_body_p_tag(1);
   $self->{root}->ignore_ignorable_whitespace(1);
   $self->{root}->no_space_compacting(1);
   $self->{root}->ignore_unknown(0);
   $self->{root}->p_strict(1);
-
+ 
+  # Parse HTML source
   if( $self->{file} ) {
     $self->{root}->parse_file( $self->{file} );
   } else {
@@ -133,6 +147,11 @@ sub output {
   my $self = shift;
   my $output = $self->wikify( $self->{root} );
   $self->tidy_whitespace( \$output );
+
+  # Unicode support (translates high bit chars
+  # to corresponding HTML entities)
+  encode_entities($output, "\200-\377");
+
   return $output;
 }
 
@@ -243,6 +262,8 @@ and returns the wikitext.
 
 =cut
 
+# As of version 0.11, the $parent parameter
+# is no longer used -- diberri 5/14/04
 sub wikify {
   my( $self, $node, $parent ) = @_;
 
@@ -483,18 +504,6 @@ sub wikify_td {
   return "$output\n";
 }
 
-=item B<wikify_list_start>
-
-  $output = wikify_list_start( $elem )
-
-=cut
-
-sub wikify_list_start {
-  my( $self, $node ) = @_;
-  my $content = $self->elem_contents($node);
-  return "$content\n";
-}
-
 =item B<wikify_list_item>
 
   $output = wikify_list_item( $elem )
@@ -504,9 +513,8 @@ sub wikify_list_start {
 # XXX Doesn't properly handle nesting
 sub wikify_list_item {
   my( $self, $node ) = @_;
-  
-  my $output = $node->parent->tag eq 'ol' ? '* ' : '# ';
 
+  my $output = _elem_has_ancestor($node, 'ol') ? '*' : '#';
   my $content = $self->elem_contents($node);
 
   # Trim whitespace
@@ -676,26 +684,94 @@ sub wikify_div {
   return "<div$attr_str>$contents</div>\n\n";
 }
 
-=item B<wikify_p>
+=item B<wikify_default>
 
-  $output = wikify_p( $elem )
+  $output = wikify_default( $elem )
+
+This handler should be assigned to all tags that do not
+need further processing. For example, in order to preserve
+FONT tags from the HTML source in the wiki output, one
+must use
+
+  $wc->set_handler( font => \&HTML::WikiConverter::wikify_default );
+
+This ensures that FONT tags are not simply removed from the
+HTML source.
 
 =cut
 
-sub wikify_p {
+sub wikify_default {
   my( $self, $node ) = @_;
-  my $c = $self->elem_contents($node);
-  $c =~ s/\s+$//;
-  return "$c\n\n";
+  
+  my $content = $self->elem_contents($node);
+
+  my $attr_str = join ' ', map {
+    my $attr = $node->attr($_);
+    "$_=\"$attr\"";
+  } grep {
+    length $node->attr($_)
+  } $node->all_external_attr_names;
+
+  my $tag = $node->tag;
+  $attr_str &&= " $attr_str";
+
+  return "<$tag$attr_str>$content</$tag>";
 }
 
-=item B<wikify_heading>
+=item B<wikify_span>
 
-  $output = wikify_heading( $elem )
+  $output = wikify_span( $elem )
+
+Attempts to convert a SPAN tag into an equivalent FONT tag (since
+some wikis do not allow SPAN tags, only FONT tags).
 
 =cut
 
-sub wikify_heading {
+sub wikify_span {
+  my( $self, $node ) = @_;
+
+  my $content = $self->elem_contents( $node );
+
+  # Grab STYLE attribute
+  my $style = $node->attr('style');
+
+  # Maps STYLE properties to FONT attributes
+  my %style2font = (
+    'font-family' => 'face',
+    'color'       => 'color',
+  );
+
+  # Parse STYLE attribute
+  my $font_attr_str = '';
+  foreach my $prop ( split ';', $node->attr('style') ) {
+    my( $pname, $pval ) = split ':', $prop, 2;
+    $pname = lc $pname;
+
+    if( exists $style2font{$pname} and length $pval ) {
+      $font_attr_str .= " $style2font{$pname}=\"$pval\"" if length $pval;
+    }
+  }
+
+  # Grab CLASS and ID attributes too
+  for my $attr ( qw/class id/ ) {
+    my $val = $node->attr($attr);
+    $font_attr_str .= " $attr=\"$val\"" if length $val;
+  }
+  
+  # Convert into FONT tag if we have some valid attributes
+  return "<font$font_attr_str>$content</font>" if $font_attr_str;
+
+  # Strip off SPAN tag otherwise
+  return $content;
+}
+
+=item B<wikify_h>
+
+  $output = wikify_h( $elem )
+
+=cut
+
+sub wikify_h {
   my( $self, $node ) = @_;
 
   # Parse the heading level out of the tag name
@@ -745,7 +821,7 @@ sub _elem_has_ancestor {
 
   if( ref $node->parent ) {
     return 1 if $node->parent->tag eq $tag;
-    return has_parent( $node->parent, $tag );
+    return _elem_has_ancestor( $node->parent, $tag );
   }
 
   return 0;

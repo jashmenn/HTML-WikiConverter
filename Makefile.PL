@@ -6,6 +6,7 @@ WriteMakefile(
     'NAME'		=> 'HTML::WikiConverter',
     'VERSION_FROM'	=> 'WikiConverter.pm', # finds $VERSION
     'PREREQ_PM'		=> {
+       HTML::Entities      => 1.27,
        HTML::PrettyPrinter => 0.03,
        HTML::TreeBuilder   => 3.13,
        Image::Grab	   => 1.4,

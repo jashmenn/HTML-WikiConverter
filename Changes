@@ -1,5 +1,38 @@
 # Change log for HTML::WikiConverter
 
+version: 0.12
+date:    Thu May 14 5:23:08 PDT 2004
+changes:
+ - Bug fix: removed reference to non-existent 'has_parent'
+   method within '_elem_has_ancestor' function
+ - Bug fix: fixed potential bug in 'wikify_list_item'
+   which used $node->parent->tag eq '...' instead of
+   _elem_has_ancestor($node, '...')
+ - Now supports definition lists via ; and :
+ - Now supports indentation via :
+ - Replaced code handler for P tag with flank handler
+ - Replaced code handler for OL/UL tags with flank handlers
+ - Renamed 'wikify_heading' method to 'wikify_h' for
+   consistency with other wikify_* handlers
+ - NOWIKI blocks are now preserved
+ - Introduced beginnings of Unicode support with the
+   use of HTML entities to HTML-escape high-bit characters
+ - Added more tests to t/test.t
+
+version: 0.11
+date:    Sun May 10 1:01:09 PDT 2004
+changes:
+ - added wikify_default code handler for tags
+   that should be preserved. (Tags without handlers
+   are removed from the wiki markup by default.
+   So, for example, "<TAG>content</TAG>" becomes
+   "content". By assigning the TAG to wikify_default,
+   the resulting wiki markup is "<tag>content</tag>".)
+   All tag attributes are preserved as well.
+ - Added wikify_span
+ - Now preserves FONT, SUP, and SUB tags
+ - SPAN tags are converted into FONT if possible
+
 version: 0.10
 date:    Thu May 07 3:10:04 PDT 2004
 changes:

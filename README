@@ -50,6 +50,11 @@ FEATURES
       chunks of HTML. Text contained within PRE tags is left
       untouched.
 
+    o Supports Unicode
+
+      Translates high bit characters to their HTML entity equivalents,
+      in this module's first attempt at supporting Unicode.
+
 INSTALLATION
 
     The simplest way to install is via the CPAN shell:
