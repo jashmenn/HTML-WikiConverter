@@ -8,13 +8,14 @@ plan tests => scalar @tests;
 use HTML::WikiConverter;
 my $wc = new HTML::WikiConverter(
   dialect => 'Kwiki',
-  base_uri => 'http://www.test.com'
+  base_uri => 'http://www.test.com',
+  wiki_uri => 'http://www.test.com?'
 );
 
 foreach my $test ( @tests ) {
   $test =~ s/^(.*?)\n//; my $name = $1;
   my( $html, $wiki ) = split /\+\+/, $test;
-  for( $html, $wiki ) { s/^\s+//; s/\s+$// }
+  for( $html, $wiki ) { s/^\n+//; s/\n+$// }
   is( $wc->html2wiki($html), $wiki, $name );
 }
 
@@ -162,6 +163,21 @@ img
 ++
 http://www.test.com/thing.gif
 ++++
+internal links (camel-case)
+<html><a href="?FunTimes">FunTimes</a></html>
+++
+FunTimes
+++++
+forced internal links (no camel-case)
+<html><a href="?funTimes">funTimes</a></html>
+++
+[funTimes]
+++++
+internal links (camel-case w/ diff. text)
+<html><a href="?FunTimes">click here</a></html>
+++
+[click here http:?FunTimes]
+++++
 external links
 <html><a href="test.html">thing</a></html>
 ++
@@ -179,6 +195,20 @@ simple tables
 <tr><td>weigtht</td><td>130lbs</td><td>150lbs</td></tr>
 </table></html>
 ++
+|   | Dick | Jane  |
+| height | 72" | 65"  |
+| weigtht | 130lbs | 150lbs  |
+++++
+table w/ caption
+<html><table>
+<caption>Caption</caption>
+<tr><td> </td><td>Dick</td><td>Jane</td></tr>
+<tr><td>height</td><td>72"</td><td>65"</td></tr>
+<tr><td>weigtht</td><td>130lbs</td><td>150lbs</td></tr>
+</table></html>
+++
+Caption
+
 |   | Dick | Jane  |
 | height | 72" | 65"  |
 | weigtht | 130lbs | 150lbs  |

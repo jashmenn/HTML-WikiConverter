@@ -18,25 +18,12 @@ sub rules {
     img => { replace => \&_image },
 
     ul => { line_format => 'multi', block => 1 },
-    ol => { line_format => 'multi', block => 1 },
-    dl => { line_format => 'multi', block => 1 },
-    li => {
-      start => \&_li_start,
-      line_format => 'multi', # converts two or more newlines into a single newline
-      trim_leading => 1
-    },
+    ol => { alias => 'ul' },
+    dl => { alias => 'ul' },
 
-    dt => {
-      start => \&_li_start,
-      line_format => 'multi',
-      trim_leading => 1
-    },
-  
-    dd => {
-      start => \&_li_start,
-      line_format => 'multi',
-      trim_leading => 1
-    },
+    li => { start => \&_li_start, trim_leading => 1 },
+    dt => { alias => 'li' },
+    dd => { alias => 'li' },
   );
 
   # Headings (h1-h6)
@@ -69,14 +56,15 @@ sub _li_start {
   $bullet = ':' if $node->parent->tag eq 'dl';
   $bullet = ';' if $node->parent->tag eq 'dl' and $node->tag eq 'dt';
 
-  my $prefix = ( $bullet ) x $depth;
-  return "\n$prefix ";
+  my $prefix = "\n".( ( $bullet ) x $depth );
+  $prefix = ' '.$bullet if $node->left && $node->left->tag eq 'dt';
+  return $prefix.' ';
 }
 
 sub _link {
   my( $wc, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->elem_contents($node) || '';
+  my $text = $wc->get_elem_contents($node) || '';
   return $url if $url eq $text;
   return "[$url $text]";
 }
@@ -90,6 +78,7 @@ sub preprocess_node {
   my( $pkg, $wc, $node ) = @_;
   my $tag = $node->tag || '';
   $pkg->_strip_aname($wc, $node) if $tag eq 'a';
+  $pkg->_caption2para($wc, $node) if $tag eq 'caption';
 }
 
 sub _strip_aname {
@@ -97,6 +86,14 @@ sub _strip_aname {
   return unless $node->attr('name') and $node->parent;
   return if $node->attr('href');
   $node->replace_with_content->delete();
+}
+
+sub _caption2para {
+  my( $pkg, $wc, $caption ) = @_;
+  my $table = $caption->parent;
+  $caption->detach();
+  $table->preinsert($caption);
+  $caption->tag('p');
 }
 
 1;

@@ -14,7 +14,7 @@ my $wc = new HTML::WikiConverter(
 foreach my $test ( @tests ) {
   $test =~ s/^(.*?)\n//; my $name = $1;
   my( $html, $wiki ) = split /\+\+/, $test;
-  for( $html, $wiki ) { s/^\s+//; s/\s+$// }
+  for( $html, $wiki ) { s/^\n+//; s/\n+$// }
   is( $wc->html2wiki($html), $wiki, $name );
 }
 

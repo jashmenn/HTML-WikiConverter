@@ -3,20 +3,29 @@ use Test::More;
 local $/;
 my @tests = split /\+\+\+\+\n/, <DATA>;
 
-plan tests => scalar @tests;
+plan tests => scalar @tests + 1;
 
 use HTML::WikiConverter;
 my $wc = new HTML::WikiConverter(
   dialect => 'MediaWiki',
-  base_uri => 'http://www.test.com'
+  base_uri => 'http://www.test.com',
+  wiki_uri => 'http://www.test.com/wiki/'
 );
 
 foreach my $test ( @tests ) {
   $test =~ s/^(.*?)\n//; my $name = $1;
   my( $html, $wiki ) = split /\+\+/, $test;
-  for( $html, $wiki ) { s/^\s+//; s/\s+$// }
+  for( $html, $wiki ) { s/^\n+//; s/\n+$// }
   is( $wc->html2wiki($html), $wiki, $name );
 }
+
+$wc->base_uri( '' );
+$wc->wiki_uri( '' );
+is(
+  $wc->html2wiki('<html><a href="http://www.getfirefox.com">Firefox</a></html>'),
+  '[http://www.getfirefox.com Firefox]',
+  'external link w/o wiki_uri'
+);
 
 __DATA__
 bold
@@ -196,49 +205,49 @@ nested indent
 h1
 <h1>h1</h1>
 ++
-=h1=
+= h1 =
 ++++
 h2
 <h2>h2</h2>
 ++
-==h2==
+== h2 ==
 ++++
 h3
 <h3>h3</h3>
 ++
-===h3===
+=== h3 ===
 ++++
 h4
 <h4>h4</h4>
 ++
-====h4====
+==== h4 ====
 ++++
 h5
 <h5>h5</h5>
 ++
-=====h5=====
+===== h5 =====
 ++++
 h6
 <h6>h6</h6>
 ++
-======h6======
+====== h6 ======
 ++++
 img
 <html><img src="thing.gif" /></html>
 ++
 [[Image:thing.gif]]
 ++++
-tables
+table
 <table>
   <caption>Stuff</caption>
   <tr>
-    <td> Name </td> <td> David </td>
+    <th> Name </th> <td> David </td>
   </tr>
   <tr>
-    <td> Age </td> <td> 24 </td>
+    <th> Age </th> <td> 24 </td>
   </tr>
   <tr>
-    <td> Height </td> <td> 6' </td>
+    <th> Height </th> <td> 6' </td>
   </tr>
   <tr>
     <td>
@@ -259,18 +268,17 @@ tables
 {|
 |+ Stuff
 |-
-| Name
+! Name
 | David
 |-
-| Age
+! Age
 | 24
 |-
-| Height
+! Height
 | 6'
 |-
 |
 {|
-|-
 | Nested
 | tables
 |-
@@ -279,10 +287,69 @@ tables
 |}
 |}
 ++++
+table w/ attrs
+<table border=1 cellpadding=3 bgcolor=#ffffff onclick='alert("alert!")'>
+  <caption>Stuff</caption>
+  <tr id="first" class="unselected">
+    <th id=thing bgcolor=black> Name </th> <td> Foo </td>
+  </tr>
+  <tr class="selected">
+    <th> Age </th> <td>24</td>
+  </tr>
+  <tr class="unselected">
+    <th> <u>Height</u> </th> <td> 6' </td>
+  </tr>
+</table>
+++
+{| border="1" cellpadding="3" bgcolor="#ffffff"
+|+ Stuff
+|- id="first" class="unselected"
+! id="thing" bgcolor="black" | Name
+| Foo
+|- class="selected"
+! Age
+| 24
+|- class="unselected"
+! <u>Height</u>
+| 6'
+|}
+++++
+table w/ blocks
+<table>
+  <tr>
+    <td align=center>
+      <p>Paragraph 1</p>
+      <p>Paragraph 2</p>
+    </td>
+  </tr>
+</table>
+++
+{|
+| align="center" |
+Paragraph 1
+
+Paragraph 2
+|}
+++++
 strip empty aname
 <html><a name="thing"></a> some text</html>
 ++
 some text
+++++
+wiki link (text == title)
+<html><a href="/wiki/Some_wiki_page">Some wiki page</a></html>
+++
+[[Some wiki page]]
+++++
+wiki link (text case != title case)
+<html><a href="/wiki/Another_page">another page</a></html>
+++
+[[another page]]
+++++
+wiki link (text != title)
+<html><a href="/wiki/Another_page">some text</a></html>
+++
+[[Another page|some text]]
 ++++
 external links
 <html><a href="http://www.test.com">thing</a></html>
@@ -294,8 +361,40 @@ external links (rel2abs)
 ++
 [http://www.test.com/thing.html thing]
 ++++
+strip urlexpansion
+<html><a href="http://www.google.com">Google</a> <span class=" urlexpansion ">(http://www.google.com)</span></html>
+++
+[http://www.google.com Google]
+++++
+strip printfooter
+<html><div class="printfooter">Retrieved from blah blah</div></html>
+++
+
+++++
+strip catlinks
+<html><div id="catlinks"><p>Categories: ...</p></div></html>
+++
+
+++++
+strip editsection
+<html>This is <div class="editsection" style="..."><a href="?action=edit&section=1">edit</a></div> great</html>
+++
+This is
+
+great
+++++
 complete example
 <html>
+<head>
+  <title>Complete example</title>
+  <script type="text/javascript"><!--
+  function doSomething() { alert('hello!'); }
+  //--></script>
+  <style type="text/css">
+  body { font-size: 12pt; background:#ccc }
+  h1, h2, h3 { font-family: verdana, sans-serif }
+  </style>
+</head>
 <body>
 <hr />
 
@@ -472,15 +571,15 @@ Let's see how this paragraph was handled... Excellent! Now how about a link: Get
 ; Gubaba 
 : See Diberri 
 
-=Heading One=
+= Heading One =
 
 Content of section one.
 
-==Heading==
+== Heading ==
 
 Section two content
 
-===Heading===
+=== Heading ===
 
 Crazy section three!
 
@@ -508,7 +607,6 @@ Crazy section three!
 |-
 |
 {|
-|-
 | Nested
 | tables
 |-

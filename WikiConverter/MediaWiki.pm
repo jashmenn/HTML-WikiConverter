@@ -2,84 +2,60 @@ package HTML::WikiConverter::MediaWiki;
 use warnings;
 use strict;
 
+use URI;
 use File::Basename;
+
+my @common_attrs = qw/ id class lang dir title style /;
 
 sub rules {
   # HTML attributes common to all preserved tags
-  my @common_attrs = qw/ id class lang dir title style /;
-
   my %rules = (
-    p => { block => 1, trim => 1, line_format => 'multi' },
-    i => { start => "''", end => "''", line_format => 'single' },
-    b => { start => "'''", end => "'''", line_format => 'single' },
+    hr => { replace => "\n----\n" },
+    br => { replace => '<br />' },
 
-    pre => {
-      line_prefix => ' ',
-      block => 1,
-    },
+    p      => { block => 1, trim => 1, line_format => 'multi' },
+    i      => { start => "''", end => "''", line_format => 'single' },
+    em     => { alias => 'i' },
+    b      => { start => "'''", end => "'''", line_format => 'single' },
+    strong => { alias => 'b' },
+    pre    => { line_prefix => ' ', block => 1 },
 
     font => {
       preserve => 1,
       attributes => [ @common_attrs, qw/ size color face / ]
     },
 
-    table => { start => "\n{|\n", end => "|}", block => 1, line_format => 'multi' },
-    tr => { start => "|-\n" },
-    td => { start => \&_td_start, end => "\n", trim => 1, line_format => 'blocks' },
-    th => { start => \&_td_start, end => "\n", trim => 1, line_format => 'single' },
+    table   => { start => \&_table_start, end => "|}", block => 1, line_format => 'blocks' },
+    tr      => { start => \&_tr_start },
+    td      => { start => \&_td_start, end => "\n", trim => 1, line_format => 'blocks' },
+    th      => { start => \&_td_start, end => "\n", trim => 1, line_format => 'single' },
     caption => { start => "|+ ", end => "\n", line_format => 'single' },
 
     img => { replace => \&_image },
-    a => { replace => \&_link },
+    a   => { replace => \&_link },
 
     ul => { line_format => 'multi', block => 1 },
-    ol => { line_format => 'multi', block => 1 },
-    dl => { line_format => 'multi', block => 1 },
+    ol => { alias => 'ul' },
+    dl => { alias => 'ul' },
 
     # Note that we're not using line_format=>'single' for list items;
     # doing so would incorrectly collapse nested list items into a
     # single line
 
-    li => {
-      start => \&_li_start,
-      line_format => 'multi', # converts two or more newlines into a single newline
-      trim_leading => 1
-    },
-
-    dt => {
-      start => \&_li_start,
-      line_format => 'multi',
-      trim_leading => 1
-    },
-  
-    dd => {
-      start => \&_li_start,
-      line_format => 'multi',
-      trim_leading => 1
-    },
-
-    hr => { replace => "\n----\n" },
-    br => { replace => '<br />' },
-
-    # Aliases
-    em => { alias => 'i' },
-    strong => { alias => 'b' }
+    li => { start => \&_li_start, trim_leading => 1 },
+    dt => { alias => 'li' },
+    dd => { alias => 'li' },
   );
+
+  # Disallowed HTML tags
+  my @stripped_tags = qw/ head title script style meta link object /;
 
   # HTML tags allowed in wiki markup
-  my @preserve = qw(
-    div center span
-    blockquote cite var code tt
-    sup sub strike s u del ins
-    ruby rt rb rp big small
-  );
+  my @preserved_tags= qw/ div center span blockquote cite var code tt
+                          sup sub strike s u del ins ruby rt rb rp big small /;
 
-  foreach my $tag ( @preserve ) {
-    $rules{$tag} = {
-      preserve => 1,
-      attributes => \@common_attrs
-    };
-  }
+  $rules{$_} = { replace => '' } foreach @stripped_tags;
+  $rules{$_} = { preserve=>1, attributes=>\@common_attrs } foreach @preserved_tags;
 
   # Headings (h1-h6)
   my @headings = ( 1..6 );
@@ -87,8 +63,8 @@ sub rules {
     my $tag = "h$level";
     my $affix = ( '=' ) x $level;
     $rules{$tag} = {
-      start => $affix,
-      end => $affix,
+      start => $affix.' ',
+      end => ' '.$affix,
       block => 1,
       trim => 1,
       line_format => 'single'
@@ -120,7 +96,17 @@ sub _li_start {
 sub _link {
   my( $wc, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->elem_contents($node) || '';
+  my $text = $wc->get_elem_contents($node) || '';
+
+  # Handle internal links
+  if( my $title = $wc->get_wiki_page( $url ) ) {
+    $title =~ s/_/ /g;
+    return "[[$title]]" if $text eq $title;        # no difference between link text and page title
+    return "[[$text]]" if $text eq lcfirst $title; # differ by 1st char. capitalization
+    return "[[$title|$text]]";                     # completely different
+  }
+
+  # Treat them as external links
   return $url if $url eq $text;
   return "[$url $text]";
 }
@@ -128,17 +114,58 @@ sub _link {
 sub _image {
   my( $wc, $node, $rules ) = @_;
   return '' unless $node->attr('src');
-  return '[[Image:'.basename($node->attr('src')).']]';
+  return '[[Image:'.basename( URI->new($node->attr('src'))->path ).']]';
 }
+
+sub _table_start {
+  my( $wc, $node, $rules ) = @_;
+  my $prefix = '{|';
+
+  my @table_attrs = ( @common_attrs, qw/ border cellpadding cellspacing align bgcolor / );
+  my $attrs = $wc->get_attr_str( $node, @table_attrs );
+  $prefix .= ' '.$attrs if $attrs;
+
+  return $prefix."\n";
+}
+
+sub _tr_start {
+  my( $wc, $node, $rules ) = @_;
+  my $prefix = '|-';
+  
+  my @tr_attrs = ( @common_attrs, qw/ bgcolor / );
+  my $attrs = $wc->get_attr_str( $node, @tr_attrs );
+  $prefix .= ' '.$attrs if $attrs;
+
+  return '' unless $node->left or $attrs;
+  return $prefix."\n";
+}
+
+# List of tags (and pseudo-tags, in the case of '~text') that are
+# considered phrasal elements. Any table cells that contain only these
+# elements will be placed on a single line.
+my @td_phrasals = qw/ i em b strong u tt code span font sup sub br hr ~text s strike del ins /;
+my %td_phrasals = map { $_ => 1 } @td_phrasals;
 
 sub _td_start {
   my( $wc, $node, $rules ) = @_;
-  return $node->look_down( sub { $_[0]->tag =~ /pre|table/ } ) ? "\n|\n" : "\n| ";
+  my $prefix = $node->tag eq 'th' ? '!' : '|';
+
+  my @td_attrs = ( @common_attrs, qw/ bgcolor align valign colspan rowspan / );
+  my $attrs = $wc->get_attr_str( $node, @td_attrs );
+  $prefix .= ' '.$attrs.' |' if $attrs;
+
+  # If there are any non-text elements inside the cell, then the
+  # cell's content should start on its own line
+  my @non_text = grep !$td_phrasals{$_->tag}, $node->content_list;
+  my $space = @non_text ? "\n" : ' ';
+
+  return $prefix.$space;
 }
 
 sub preprocess_node {
   my( $pkg, $wc, $node ) = @_;
   my $tag = $node->tag || '';
+  $pkg->_strip_extra($wc, $node);
   $pkg->_strip_aname($wc, $node) if $tag eq 'a';
 }
 
@@ -147,6 +174,27 @@ sub _strip_aname {
   return unless $node->attr('name') and $node->parent;
   return if $node->attr('href');
   $node->replace_with_content->delete();
+}
+
+my %extra = (
+ id => qr/catlinks/,
+ class => qr/urlexpansion|printfooter|editsection/
+);
+
+# Delete <span class="urlexpansion">...</span> et al
+sub _strip_extra {
+  my( $pkg, $wc, $node ) = @_;
+  my $tag = $node->tag || '';
+  return unless $tag =~ /div|span/;
+
+  foreach my $att_name ( keys %extra ) {
+    my $att_value = $node->attr($att_name) || '';
+    if( $att_value =~ $extra{$att_name} ) {
+      $node->detach();
+      $node->delete();
+      return;
+    }
+  }
 }
 
 1;

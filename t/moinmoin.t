@@ -14,7 +14,7 @@ my $wc = new HTML::WikiConverter(
 foreach my $test ( @tests ) {
   $test =~ s/^(.*?)\n//; my $name = $1;
   my( $html, $wiki ) = split /\+\+/, $test;
-  for( $html, $wiki ) { s/^\s+//; s/\s+$// }
+  for( $html, $wiki ) { s/^\n+//; s/\n+$// }
   is( $wc->html2wiki($html), $wiki, $name );
 }
 
@@ -100,25 +100,25 @@ p2
 lists
 <html><ul><li>1</li><li>2</li></ul></html>
 ++
-* 1
-* 2
+  * 1
+  * 2
 ++++
 nested lists
 <html><ul><li>1<ul><li>1a</li><li>1b</li></ul></li><li>2</li></ul>
 ++
-* 1  
-  * 1a
-  * 1b
-* 2
+  * 1  
+    * 1a
+    * 1b
+  * 2
 ++++
 nested lists (different types)
 <html><ul><li>1<ul><li>a<ol><li>i</li></ol></li><li>b</li></ul></li><li>2</li></ul></html>
 ++
-* 1  
-  * a
-    1. i
-  * b
-* 2
+  * 1  
+    * a
+      1. i
+    * b
+  * 2
 ++++
 hr
 <html><hr /></html>

@@ -5,41 +5,12 @@ use strict;
 use URI;
 use HTML::TreeBuilder;
 use vars '$VERSION';
-$VERSION = '0.20';
-
-=head1 NAME
-
-HTML::WikiConverter - An HTML to wiki markup converter
-
-=head1 SYNOPSIS
-
-  use HTML::WikiConverter;
-  my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
-  print $wc->html2wiki($html);
-
-=head1 DESCRIPTION
-
-HTML::WikiConverter is an HTML to wiki converter. It can convert HTML source
-into a variety of wiki markups, called wiki "dialects".
-
-=head1 METHODS
-
-=over
-
-=item $wc = new HTML::WikiConverter( dialect => '...', [ %opts ] );
-
-Returns a converter for the specified dialect. If 'dialect' is not
-provided or is not installed on your system, this method
-dies. Additional options are specified in %opts, and include:
-
-  base_uri
-    the URI to use for converting relative URIs to absolute ones
-
-=cut
+$VERSION = '0.21';
 
 my %defaults = (
   dialect => undef,   # (Required) Which wiki dialect to use
   base_uri => '',     # Base URI for relative links
+  wiki_uri => '',     # Wiki URI for wiki links
 );
 
 sub new {
@@ -64,28 +35,17 @@ sub new {
   return bless \%opts, $pkg;
 }
 
-=pod
-
-=item $base_uri = $wc->base_uri( [ $new_base_uri ] );
-
-Gets or sets the 'base_uri' option used for converting relative to
-absolute URIs.
-
-=cut
-
 sub base_uri {
   my( $self, $base_uri ) = @_;
-  $self->{base_uri} = $base_uri if $base_uri;
-  return $self->{base_uri};
+  $self->{base_uri} = $base_uri if defined $base_uri;
+  return $self->{base_uri} || '';
 }
 
-=pod
-
-=item $wiki = $wc->html2wiki( $html );
-
-Converts the HTML source into wiki markup for the current dialect.
-
-=cut
+sub wiki_uri {
+  my( $self, $wiki_uri ) = @_;
+  $self->{wiki_uri} = $wiki_uri if defined $wiki_uri;
+  return $self->{wiki_uri} || '';
+}
 
 sub html2wiki {
   my( $self, $html ) = @_;
@@ -93,10 +53,13 @@ sub html2wiki {
   my $tree = new HTML::TreeBuilder();
   $tree->p_strict(1);
   $tree->implicit_body_p_tag(1);
-
   $tree->parse($html);
+
+  # Preprocess the tree, giving dialect classes an opportunity to make
+  # any necessary changes to the tree structure
   $self->_preprocess_tree($tree);
 
+  # Save the HTML syntax tree and parsed HTML for later
   $self->{root} = $tree;
   $self->{parsed_html} = $tree->as_HTML( undef, '  ' );
 
@@ -104,29 +67,26 @@ sub html2wiki {
   my $output = $self->_wikify($tree);
   
   # Clean up newlines
-  $output =~ s/\n[\s^\n]+\n/\n\n/gm;
-  $output =~ s/\n{2,}/\n\n/gm;
-  $output =~ s/^\s+//s;
+  $output =~ s/\n[\s^\n]+\n/\n\n/g;
+  $output =~ s/\n{2,}/\n\n/g;
+
+  # Trim leading newlines and trailing whitespace; in supported wikis,
+  # leading spaces likely have meaning, so we can't muck with 'em.
+  # Leading and trailing newlines shouldn't be significant at all, so
+  # we can safely discard them.
+  $output =~ s/^\n+//s;
   $output =~ s/\s+$//s;
-  
+
+  # Delete the HTML syntax tree to prevent memory leaks
   $tree->delete();
+
   return $output;
 }
-
-=pod
-
-=item $html = $wc->parsed_html;
-
-Returns the HTML representative of the last-parsed syntax tree. Use
-this to see how your input HTML was parsed internally, which is useful
-for debugging.
-
-=cut
 
 sub parsed_html { return shift->{parsed_html} }
 
 #
-# Internal methods
+# Private methods
 #
 
 sub _wikify {
@@ -152,10 +112,10 @@ sub _wikify {
     }
 
     # Apply replacement
-    return $self->_subst($rules->{replace}, $node, $rules) if $rules->{replace};
+    return $self->_subst($rules->{replace}, $node, $rules) if exists $rules->{replace};
 
     # Get element's content
-    my $output = $self->elem_contents($node);
+    my $output = $self->get_elem_contents($node);
 
     # Unspecified tags have their whitespace preserved (this allows
     # 'html' and 'body' tags [among others] to keep formatting when
@@ -198,19 +158,30 @@ sub _subst {
   return $subst;
 }
 
+#
+# Returns a start string form preserved HTML elements and their
+# attributes, if any. For example, if this was the HTML:
+#
+#   <span id='warning' class='alert' onclick="alert('Hey!')">Hey</span>
+#
+# And the rule for the 'span' element is
+#
+#   span => { preserve => 1, attributes => [ qw/ class / ] }
+#
+# Then this function will return '<span class="alert">'.
+#
 sub _preserve_start {
   my( $self, $node, $rules ) = @_;
-  my @attrs = exists $rules->{attributes} ? @{$rules->{attributes}} : ( );
-  @attrs = map {
-    my $attr = $node->attr($_);
-    "$_=\"$attr\"";
-  } grep { $node->attr($_) } @attrs;
 
   my $tag = $node->tag;
-  my $attr_str = @attrs ? ' '.join(' ',@attrs) : '';
-  return "<$tag$attr_str>";
+  my @attrs = exists $rules->{attributes} ? @{$rules->{attributes}} : ( );
+  my $attr_str = $self->get_attr_str( $node, @attrs );
+
+  return '<'.$tag.' '.$attr_str.'>' if $attr_str;
+  return '<'.$tag.'>';
 }
 
+# Maps tag name to the attribute that should contain an absolute URI
 my %abs2rel= (
   a => 'href',
   img => 'src'
@@ -228,13 +199,13 @@ sub _preprocess_tree {
 
   foreach my $node ( $root->descendents ) {
     my $tag = $node->tag || '';
-    $self->_rel2abs_uri($node) if $self->{base_uri} and $abs2rel{$tag};
-    $self->_rm_whitespace($node);
+    $self->_rel2abs_uri($node) if $self->base_uri and $abs2rel{$tag};
+    $self->_rm_invalid_text($node);
     $dc->preprocess_node( $self, $node ) if $dc_pn;
   }
 
   # Must objectify text again in case preprocessing happened to add
-  # any new text nodes
+  # any new text content
   $root->objectify_text();
 }
 
@@ -246,9 +217,11 @@ sub _rel2abs_uri {
   $node->attr( $attr => URI->new($node->attr($attr))->abs($self->base_uri)->as_string );
 }
 
+# Removes text nodes directly inside container elements, since
+# container elements cannot contain text. This is intended to
+# remove excess whitespace in these elements.
 my %containers = map { $_ => 1 } qw/ table tr tbody ul ol dl menu /;
-
-sub _rm_whitespace {
+sub _rm_invalid_text {
   my( $self, $node ) = @_;
   my $tag = $node->tag || '';
   if( $containers{$tag} ) {
@@ -258,6 +231,11 @@ sub _rm_whitespace {
   }
 }
 
+# Specifies what rule combinations are allowed. For example, 'trim'
+# cannot be specified alongside 'trim_leading' or 'trim_trailing'.
+# And 'replace' cannot be used in combination with any other rule,
+# so it's a singleton. The 'attributes' rule is invalid unless it's
+# accompanied by the 'preserve' rule.
 my %rule_spec = (
   trim       => { disallow => [ qw/ trim_leading trim_trailing / ] },
   replace    => { singleton => 1 },
@@ -266,6 +244,7 @@ my %rule_spec = (
   attributes => { require  => [ qw/ preserve / ] },
 );
 
+# Ensures that the dialect's rules are valid, according to %rule_spec
 sub _check_rules {
   my( $dialect, $ruleset ) = @_;
 
@@ -279,40 +258,134 @@ sub _check_rules {
       my @disallow = ref $spec->{disallow} eq 'ARRAY' ? @{ $spec->{disallow} } : ( );
       my @require = ref $spec->{require} eq 'ARRAY' ? @{ $spec->{require} } : ( );
 
-      die "$opt' cannot be combined with any other option in tag '$tag', dialect '$dialect'."
+      die "'$opt' cannot be combined with any other option in tag '$tag', dialect '$dialect'."
         if $singleton and keys %$rules != 1;
 
-      exists $rules->{$_} && die "'$opt' cannot be combined with '$_' in tag '$tag', dialect '$dialect'."
+      $rules->{$_} && die "'$opt' cannot be combined with '$_' in tag '$tag', dialect '$dialect'."
         foreach @disallow;
 
-      ! exists $rules->{$_} && die "'$opt' must be combined with '$_' in tag '$tag', dialect '$dialect'."
+      ! $rules->{$_} && die "'$opt' must be combined with '$_' in tag '$tag', dialect '$dialect'."
         foreach @require;
     }
   }
 }
 
-=pod
+#
+# Utility methods
+#
 
-=back
-
-=head1 UTILITY METHODS
-
-=over
-
-=item $wiki = $wc->elem_contents( $node )
-
-Converts the contents of $node into wiki markup.
-
-=cut
-
-sub elem_contents {
+sub get_elem_contents {
   my( $self, $node ) = @_;
   my $output = '';
   $output .= $self->_wikify($_) for $node->content_list;
   return $output;
 }
 
-=pod
+sub get_wiki_page {
+  my( $self, $url ) = @_;
+  return undef unless $self->wiki_uri;
+  return undef unless index( $url, $self->wiki_uri ) == 0;
+  return undef unless length $url > length $self->wiki_uri;
+  return substr( $url, length $self->wiki_uri );
+}
+
+my $UPPER    = '\p{UppercaseLetter}';
+my $LOWER    = '\p{LowercaseLetter}';
+my $WIKIWORD = "$UPPER$LOWER\\p{Number}\\p{ConnectorPunctuation}";
+
+sub is_camel_case {
+  return $_[1] =~ /(?:[$UPPER](?=[$WIKIWORD]*[$UPPER])(?=[$WIKIWORD]*[$LOWER])[$WIKIWORD]+)/;
+}
+
+sub get_attr_str {
+  my( $self, $node, @attrs ) = @_;
+  my %attrs = map { $_ => $node->attr($_) } @attrs;
+  my $str = join ' ', map { "$_=\"$attrs{$_}\"" } grep $attrs{$_}, @attrs;
+  return $str || '';
+}
+
+1;
+__END__
+
+=head1 NAME
+
+HTML::WikiConverter - An HTML to wiki markup converter
+
+=head1 SYNOPSIS
+
+  use HTML::WikiConverter;
+  my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
+  print $wc->html2wiki( $html );
+
+=head1 DESCRIPTION
+
+HTML::WikiConverter is an HTML to wiki converter. It can convert HTML
+source into a variety of wiki markups, called wiki "dialects".
+
+=head1 METHODS
+
+=over
+
+=item $wc = new HTML::WikiConverter( dialect => '...', [ %attrs ] )
+
+Returns a converter for the specified dialect. Dies if 'dialect' is
+not provided or is not installed on your system. Additional parameters
+are optional and can be specified in %attrs:
+
+  base_uri
+    URI to use for converting relative URIs to absolute ones
+
+  wiki_uri
+    URI used in determining which links are wiki links. For
+    example, the English Wikipedia would use 'http://en.wikipedia.org/wiki/'
+
+=item $wiki = $wc->html2wiki( $html )
+
+Converts the HTML source into wiki markup for the current dialect.
+
+=item $html = $wc->parsed_html
+
+Returns the HTML representative of the last-parsed syntax tree. Use
+this to see how your input HTML was parsed internally, often useful
+for debugging.
+
+=item $base_uri = $wc->base_uri( [ $new_base_uri ] )
+
+Gets or sets the 'base_uri' option used for converting relative to
+absolute URIs.
+
+=item $wiki_uri = $wc->wiki_uri( [ $new_wiki_uri ] )
+
+Gets or sets the 'wiki_uri' option used for determining which links
+are links to wiki pages.
+
+=back
+
+=head1 UTILITY METHODS
+
+These methods are for use only by dialect modules.
+
+=over
+
+=item $wiki = $wc->get_elem_contents( $node )
+
+Converts the contents of $node (i.e. its children) into wiki markup.
+
+=item $title = $wc->get_wiki_page( $url )
+
+Attempts to extract the title of a wiki page from the given URL,
+returning the title on success, undef on failure. If 'wiki_uri' is
+empty, this method always return undef.
+
+=item $bool = $wc->is_camel_case( $str )
+
+Returns true if the string in $str is in CamelCase, false
+otherwise. Code is taken from CGI::Kwiki's formatting module.
+
+=item $attr_str = $wc->get_attr_str( $node, @attrs )
+
+Returns a string containing the specified attributes in the given
+node. The returned string is suitable for insertion into an HTML tag.
 
 =back
 
@@ -330,21 +403,52 @@ rules for the MediaWiki dialect are provided in
 C<HTML::WikiConverter::MediaWiki>. And PhpWiki is specified in
 C<HTML::WikiConverter::PhpWiki>.
 
-head2 Supported dialects
+=head2 Supported dialects
 
+HTML::WikiConverter supports conversions for the following dialects:
+
+  Kwiki
   MediaWiki
   MoinMoin
   PhpWiki
-  Kwiki
+  PmWiki
+  UseMod
 
-=head2 Rules
+While under most conditions the each will produce satisfactory wiki
+markup, the complete syntactic sugar of each dialect has not yet been
+implemented. Suggestions, especially in the form of patches, are very
+welcome.
+
+Of these, the MediaWiki dialect is probably the most complete. I am a
+Wikipediholic, after all. :-)
+
+=head2 Conversion rules
 
 To interface with HTML::WikiConverter, dialect modules must define a
 single C<rules()> class method. It returns a reference to a hash of
 rules that specify how individual HTML elements are converted to wiki
-markup. For example, the following C<rules()> method could be used for
-a wiki dialect that used *asterisks* for bold and _underscores_ for
-italic text:
+markup. The following rules are recognized:
+
+  start
+  end
+
+  preserve
+  attributes
+
+  replace
+  alias
+
+  block
+  line_format
+  line_prefix
+  
+  trim
+  trim_leading
+  trim_trailing
+
+For example, the following C<rules()> method could be used for a wiki
+dialect that uses *asterisks* for bold and _underscores_ for italic
+text:
 
   sub rules {
     return {
@@ -353,27 +457,29 @@ italic text:
     };
   }
 
-It is sometimes to define tags as aliases, for example to treat
-E<lt>strongE<gt> and E<lt>bE<gt> the same. For that, use the 'alias'
-keyword:
+To add E<lt>strongE<gt> and E<lt>emE<gt> as aliases of E<lt>bE<gt> and
+E<lt>iE<gt>, use the 'alias' rule:
 
   sub rules {
     return {
       b => { start => '*', end => '*' },
-      i => { start => '_', end => '_' },
-
       strong => { alias => 'b' },
+
+      i => { start => '_', end => '_' },
       em => { alias => 'i' }
     };
   }
 
-(Note that if you specify the 'alias' option, no other options are
-allowed.)
+(If you specify the 'alias' rule, no other rules are allowed.)
 
 Many wiki dialects separate paragraphs and other block-level elements
 with a blank line. To indicate this, use the 'block' keyword:
 
   p => { block => 1 }
+
+(Note that if a block-level element is nested inside another
+block-level element, blank lines are only added to the outermost
+block-level element.)
 
 However, many such wiki engines require that the text of a paragraph
 be contained on a single line of text. Or that a paragraph cannot
@@ -381,11 +487,12 @@ contain any blank lines. These formatting options can be specified
 using the 'line_format' keyword, which can be assigned the value
 'single', 'multi', or 'blocks'.
 
-If the element must be contained on a single line, then the 'line_format'
-option should be 'single'. If the element can span multiple lines, but there
-can be no blank lines contained within, then it should be 'multi'. If blank
-lines (which delimit blocks) are allowed, then it should be 'blocks'. For
-example, paragraphs are specified like so in the MediaWiki dialect:
+If the element must be contained on a single line, then the
+'line_format' option should be 'single'. If the element can span
+multiple lines, but there can be no blank lines contained within, then
+it should be 'multi'. If blank lines (which delimit blocks) are
+allowed, then it should be 'blocks'. For example, paragraphs are
+specified like so in the MediaWiki dialect:
 
   p => { block => 1, line_format => 'multi', trim => 1 }
 
@@ -394,38 +501,43 @@ should be stripped from the paragraph before other rules are
 processed. You can use 'trim_leading' and 'trim_trailing' if you only
 want whitespace trimmed from one end of the content.
 
-Some multi-line elements require that each line of output be prefixed with
-a particular string. For example, preformatted text in the MediaWiki
-dialect is prefixed with one or more spaces. This is specified using the
-'line_prefix' option:
+Some multi-line elements require that each line of output be prefixed
+with a particular string. For example, preformatted text in the
+MediaWiki dialect is prefixed with one or more spaces. This is
+specified using the 'line_prefix' option:
 
   pre => { block => 1, line_prefix => ' ' }
 
 In some cases, conversion from HTML to wiki markup is as simple as
-replacing an element with a particular string. This is done with the
-'replace' option.  For example, in the PhpWiki dialect, three percent
-signs '%%%' represents a linebreak E<lt>brE<gt>:
+string replacement. When you want to replace a tag and its contents
+with a particular string, use the 'replace' option. For example, in
+the PhpWiki dialect, three percent signs '%%%' represents a linebreak
+E<lt>brE<gt>, hence the rule:
 
   br => { replace => '%%%' }
 
-(Note that if you specify the 'replace' option, no other options are
-allowed.)
+(If you specify the 'replace' option, no other options are allowed.)
 
-Finally, many (if not all) wiki dialects allow a subset of HTML in
-their markup, such as for superscripts, subscripts, and text
-centering.  HTML tags may be preserved using the 'preserve'
-option. For example, to allow the E<lt>fontE<gt> tag in wiki markup,
-one might say:
+Finally, many wiki dialects allow a subset of HTML in their markup,
+such as for superscripts, subscripts, and text centering.  HTML tags
+may be preserved using the 'preserve' option. For example, to allow
+the E<lt>fontE<gt> tag in wiki markup, one might say:
 
   font => { preserve => 1 }
+
+(The 'preserve' rule cannot be combined with the 'start' or 'end'
+rules.)
 
 Preserved tags may also specify a whitelist of attributes that may
 also passthrough from HTML to wiki markup. This is done with the
 'attributes' option:
 
-  font => { preserve => 1, attributes => [ qw/ font size / ] )
+  font => { preserve => 1, attributes => [ qw/ font size / ] }
 
-=head3 Dynamic rules
+(The 'attributes' rule must be used in conjunction with the 'preserve'
+rule.)
+
+=head2 Dynamic rules
 
 Instead of simple strings, you may use coderefs as option values for
 the 'start', 'end', 'replace', and 'line_prefix' rules. If you do, the
@@ -434,7 +546,35 @@ HTML::WikiConverter instance, 2) the current HTML::Element node, and
 3) the rules for that node (as a hashref).
 
 Specifying rules dynamically is often useful for handling nested
-elements.
+elements. For example, the MoinMoin dialect uses the following rules
+for lists:
+
+  ul => { line_format => 'multi', block => 1, line_prefix => '  ' }
+  li => { start => \&_li_start, trim_leading => 1 }
+  ol => { alias => 'ul' }
+
+It then defines _li_start() like so:
+
+  sub _li_start {
+    my( $wc, $node, $rules ) = @_;
+    my $bullet = '';
+    $bullet = '*'  if $node->parent->tag eq 'ul';
+    $bullet = '1.' if $node->parent->tag eq 'ol';
+    return "\n$bullet ";
+  }
+
+This ensures that every unordered list item is prefixed with '*' and
+every ordered list item is prefixed with '1.', per the MoinMoin
+markup. It also ensures that each list item is on a separate line and
+that there is a space between the prefix and the content of the list
+item.
+
+=head2 Rule validation
+
+Certain rule combinations are not allowed. For example, the 'replace'
+and 'alias' rules cannot be combined with any other rules, and
+'attributes' can only be specified alongside 'preserve'. Invalid rule
+combinations will trigger an error when the dialect module is loaded.
 
 =head2 Preprocessing
 
@@ -449,10 +589,11 @@ current HTML::WikiConverter instance, and 3) the current HTML::Element
 node being traversed. It may modify the node or decide to ignore it.
 The return value of the C<preprocess_node()> method is not used.
 
-Because they are so commonly needed, two preprocessing steps are automatically
-carried out by HTML::WikiConverter, regardless of the current dialect: 1)
-relative URIs are converted to absolute URIs (based upon the 'base_uri' parameter), and 2)
-ignorable content (e.g. between E<lt>/tdE<gt> and E<lt>tdE<gt>) is discarded.
+Because they are so commonly needed, two preprocessing steps are
+automatically carried out by HTML::WikiConverter, regardless of the
+dialect: 1) relative URIs in images and links are converted to
+absolute URIs (based upon the 'base_uri' parameter), and 2) ignorable
+text (e.g. between E<lt>/tdE<gt> and E<lt>tdE<gt>) is discarded.
 
 =head1 SEE ALSO
 
@@ -467,9 +608,9 @@ David J. Iberri <diberri@yahoo.com>
 
 Copyright (c) 2004-2005 David J. Iberri
 
-This library is free software; you may redistribute it and/or
-modify it under the same terms as Perl itself.
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
-
-1;

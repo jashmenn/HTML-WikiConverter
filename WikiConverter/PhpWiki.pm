@@ -4,42 +4,29 @@ use strict;
 
 sub rules {
   my %rules = (
+    hr => { replace => "\n----\n" },
+    br => { replace => '%%%' },
+
+    blockquote => { start => \&_blockquote_start, block => 1, line_format => 'multi' },
     p => { block => 1, trim => 1, line_format => 'multi' },
     i => { start => "_", end => "_" },
+    em => { alias => 'i' },
     b => { start => "*", end => "*" },
-
-    blockquote => {
-      block => 1,
-      line_format => 'multi',
-      start => \&_blockquote_start
-    },
+    strong => { alias => 'b' },
 
     img => { replace => \&_image },
     a => { replace => \&_link },
 
     ul => { line_format => 'multi', block => 1 },
-    ol => { line_format => 'multi', block => 1 },
+    ol => { alias => 'ul' },
+    dl => { line_format => 'blocks', block => 1 },
 
-    td => {
-      start => \&_td_start,
-      end => \&_td_end,
-      trim => 1
-    },
+    li => { start => \&_li_start, trim_leading => 1 },
+    dt => { trim => 1, end => ":\n" },
+    dd => { line_prefix => '  ' },
 
+    td => { start => \&_td_start, end => \&_td_end, trim => 1 },
     th => { alias => 'td' },
-
-    # Note that we're not using 'remove_newlines' for list items;
-    # doing so would incorrectly collapse nested list items into a
-    # single line
-
-    li => {
-      start => \&_li_start,
-      line_format => 'multi', # converts two or more newlines into a single newline
-      trim_leading => 1,
-    },
-
-    hr => { replace => "\n----\n" },
-    br => { replace => '%%%' },
 
     h1 => { start => '!!! ', block => 1, trim => 1, line_format => 'single' },
     h2 => { start => '!!! ', block => 1, trim => 1, line_format => 'single' },
@@ -47,13 +34,6 @@ sub rules {
     h4 => { start => '! ',   block => 1, trim => 1, line_format => 'single' },
     h5 => { start => '! ',   block => 1, trim => 1, line_format => 'single' },
     h6 => { start => '! ',   block => 1, trim => 1, line_format => 'single' },
-
-    dt => { trim => 1, line_format => 'multi', end => ":\n" },
-    dd => { line_prefix => '  ' },
-
-    # Aliases
-    em => { alias => 'i' },
-    strong => { alias => 'b' }
   );
 
   # HTML tags allowed in wiki markup
@@ -87,7 +67,7 @@ sub _image {
 sub _link {
   my( $wc, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->elem_contents($node) || '';
+  my $text = $wc->get_elem_contents($node) || '';
   return "[$text|$url]";
 }
 
@@ -116,6 +96,7 @@ sub preprocess_node {
   my( $pkg, $wc, $node ) = @_;
   my $tag = $node->tag || '';
   $pkg->_strip_aname($wc, $node) if $tag eq 'a';
+  $pkg->_caption2para($wc, $node) if $tag eq 'caption';
 }
 
 sub _strip_aname {
@@ -123,6 +104,14 @@ sub _strip_aname {
   return unless $node->attr('name') and $node->parent;
   return if $node->attr('href');
   $node->replace_with_content->delete();
+}
+
+sub _caption2para {
+  my( $pkg, $wc, $caption ) = @_;
+  my $table = $caption->parent;
+  $caption->detach();
+  $table->preinsert($caption);
+  $caption->tag('p');
 }
 
 1;

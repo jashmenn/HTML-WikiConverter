@@ -23,20 +23,17 @@ sub rules {
     a => { replace => \&_link },
     img => { replace => \&_image },
 
-    ul => { line_format => 'multi', block => 1, line_prefix => \&_list_prefix },
-    ol => { line_format => 'multi', block => 1, line_prefix => \&_list_prefix },
+    ul => { line_format => 'multi', block => 1, line_prefix => '  ' },
+    ol => { alias => 'ul' },
 
-    li => {
-      start => \&_li_start,
-      line_format => 'multi', # converts two or more newlines into a single newline
-      trim_leading => 1
-    },
+    li => { start => \&_li_start, trim_leading => 1 },
 
     dl => { line_format => 'multi' },
     dt => { trim => 1, end => ':: ' },
     dd => { trim => 1 },
 
     hr => { replace => "\n----\n" },
+    br => { replace => '[[BR]]' },
 
     table => { block => 1, line_format => 'multi' },
     tr => { end => "||\n", line_format => 'single' },
@@ -101,6 +98,7 @@ sub _td_start {
 
 sub _attrs2style {
   my( $node, @attrs ) = @_;
+  return unless $node;
   my %attrs = map { $_ => $node->attr($_) } grep $node->attr($_), @attrs;
   my $attstr = join '; ', map "$att2prop{$_}:$attrs{$_}", keys %attrs;
   return $attstr || '';
@@ -116,16 +114,10 @@ sub _li_start {
   return "\n$bullet ";
 }
 
-sub _list_prefix {
-  my( $wc, $node, $rules ) = @_;
-  return '  ' if $node->parent->look_up( _tag => qr/ul|ol/ );
-  return '';
-}
-
 sub _link {
   my( $wc, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->elem_contents($node) || '';
+  my $text = $wc->get_elem_contents($node) || '';
   return $url if $url eq $text;
   return "[$url $text]";
 }
@@ -139,6 +131,7 @@ sub preprocess_node {
   my( $pkg, $wc, $node ) = @_;
   my $tag = $node->tag || '';
   $pkg->_strip_aname($wc, $node) if $tag eq 'a';
+  $pkg->_caption2para($wc, $node) if $tag eq 'caption';
 }
 
 sub _strip_aname {
@@ -146,6 +139,14 @@ sub _strip_aname {
   return unless $node->attr('name') and $node->parent;
   return if $node->attr('href');
   $node->replace_with_content->delete();
+}
+
+sub _caption2para {
+  my( $pkg, $wc, $caption ) = @_;
+  my $table = $caption->parent;
+  $caption->detach();
+  $table->preinsert($caption);
+  $caption->tag('p');
 }
 
 1;

@@ -14,38 +14,30 @@ sub rules {
     h5 => { start => '===== ',  block => 1, trim => 1, line_format => 'single' },
     h6 => { start => '====== ', block => 1, trim => 1, line_format => 'single' },
 
-    p => { block => 1, trim => 1, line_format => 'multi' },
-    b => { start => '*', end => '*', line_format => 'single' },
-    i => { start => '/', end => '/', line_format => 'single' },
-    u => { start => '_', end => '_', line_format => 'single' },
-    s => { start => '-', end => '-', line_format => 'single' },
+    p      => { block => 1, trim => 1, line_format => 'multi' },
+    b      => { start => '*', end => '*', line_format => 'single' },
+    strong => { alias => 'b' },
+    i      => { start => '/', end => '/', line_format => 'single' },
+    em     => { alias => 'i' },
+    u      => { start => '_', end => '_', line_format => 'single' },
+    strike => { start => '-', end => '-', line_format => 'single' },
+    s      => { alias => 'strike' },
 
-    tt => { start => '[=', end => ']', trim => 1, line_format => 'single' },
+    tt   => { start => '[=', end => ']', trim => 1, line_format => 'single' },
+    code => { alias => 'tt' },
+    pre  => { line_prefix => ' ', block => 1 },
 
-    a => { replace => \&_link },
+    a   => { replace => \&_link },
     img => { replace => \&_image },
 
-    pre => {
-      line_prefix => ' ',
-      block => 1,
-    },
-
     table => { block => 1 },
-    tr => { end => " |\n", line_format => 'single' },
-    td => { start => '| ', end => ' ' },
-    th => { alias => 'td' },
+    tr    => { end => " |\n", line_format => 'single' },
+    td    => { start => '| ', end => ' ' },
+    th    => { alias => 'td' },
 
     ul => { line_format => 'multi', block => 1 },
-    ol => { line_format => 'multi', block => 1 },
-    li => {
-      start => \&_li_start,
-      line_format => 'multi', # converts two or more newlines into a single newline
-      trim_leading => 1
-    },
-
-    strong => { alias => 'b' },
-    em     => { alias => 'i' },
-    code   => { alias => 'tt' },
+    ol => { alias => 'ul' },
+    li => { start => \&_li_start, trim_leading => 1 },
   );
 
   return \%rules;
@@ -69,8 +61,17 @@ sub _li_start {
 sub _link {
   my( $wc, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->elem_contents($node) || '';
-  return "$url" if $text eq $url;
+  my $text = $wc->get_elem_contents($node) || '';
+
+  # Handle the internal links
+  if( my $title = $wc->get_wiki_page($url) ) {
+    return $title if $wc->is_camel_case( $title ) and $text eq $title;
+    return "[$title]" if $text eq $title;
+    return "[$text http:?$title]" if $text ne $title;
+  }
+
+  # Handle the external ones
+  return $url if $text eq $url;
   return "[$text $url]";
 }
 
@@ -83,6 +84,7 @@ sub preprocess_node {
   my( $pkg, $wc, $node ) = @_;
   my $tag = $node->tag || '';
   $pkg->_strip_aname($wc, $node) if $tag eq 'a';
+  $pkg->_caption2para($wc, $node) if $tag eq 'caption';
 }
 
 sub _strip_aname {
@@ -90,6 +92,14 @@ sub _strip_aname {
   return unless $node->attr('name') and $node->parent;
   return if $node->attr('href');
   $node->replace_with_content->delete();
+}
+
+sub _caption2para {
+  my( $pkg, $wc, $caption ) = @_;
+  my $table = $caption->parent;
+  $caption->detach();
+  $table->preinsert($caption);
+  $caption->tag('p');
 }
 
 1;
