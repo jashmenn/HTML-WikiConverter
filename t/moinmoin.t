@@ -8,7 +8,8 @@ plan tests => scalar @tests;
 use HTML::WikiConverter;
 my $wc = new HTML::WikiConverter(
   dialect => 'MoinMoin',
-  base_uri => 'http://www.test.com'
+  base_uri => 'http://www.test.com',
+  wrap_in_html => 1
 );
 
 foreach my $test ( @tests ) {
@@ -19,6 +20,12 @@ foreach my $test ( @tests ) {
 }
 
 __DATA__
+wrap in html
+<a href="http://google.com">GOOGLE</a><br/>
+NewLine
+++
+[http://google.com GOOGLE][[BR]] NewLine
+++++
 bold
 <html><b>bold</b></html>
 ++

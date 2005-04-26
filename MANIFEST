@@ -1,3 +1,4 @@
+bin/html2wiki
 Makefile.PL
 MANIFEST
 README

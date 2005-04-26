@@ -4,6 +4,7 @@ use strict;
 
 sub rules {
   my %rules = (
+    br     => { replace => '<br>' },
     hr     => { replace => "\n----\n" },
     pre    => { line_prefix => ' ', block => 1 },
     p      => { block => 1, trim => 1, line_format => 'multi' },

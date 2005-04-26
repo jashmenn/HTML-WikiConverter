@@ -167,6 +167,18 @@ sub preprocess_node {
   my $tag = $node->tag || '';
   $pkg->_strip_extra($wc, $node);
   $pkg->_strip_aname($wc, $node) if $tag eq 'a';
+  $pkg->_fix_extlinks_in_text($wc, $node) if $tag eq '~text';
+}
+
+my $URL_PROTOCOLS = 'http|https|ftp|irc|gopher|news|mailto';
+my $EXT_LINK_URL_CLASS = '[^]<>"\\x00-\\x20\\x7F]';
+my $EXT_LINK_TEXT_CLASS = '[^\]\\x00-\\x1F\\x7F]';
+
+sub _fix_extlinks_in_text {
+  my( $pkg, $wc, $node ) = @_;
+  my $text = $node->attr('text') || '';
+  $text =~ s~(\[\b(?:$URL_PROTOCOLS):$EXT_LINK_URL_CLASS+ *$EXT_LINK_TEXT_CLASS*?\])~<nowiki>$1</nowiki>~go;
+  $node->attr( text => $text );
 }
 
 sub _strip_aname {

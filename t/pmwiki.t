@@ -207,9 +207,9 @@ table w/ colspan
   <td align='right'>Right</td>
 </tr>
 <tr>
-  <td align='left'>A</td>
-  <th align='center'>B</th>
-  <td align='right'>C</td>
+  <td align='left'> A </td>
+  <th align='center'> B </th>
+  <td align='right'> C </td>
 </tr>
 <tr>
   <td> </td>
@@ -226,8 +226,8 @@ table w/ colspan
 ||!Table ||!Heading ||!Example ||
 ||!Left || Center || Right||
 ||A ||! B || C||
-||  || single ||  ||
-||  || multi span ||||
+|| || single || ||
+|| || multi span ||||
 ++++
 pre
 <html><pre>this

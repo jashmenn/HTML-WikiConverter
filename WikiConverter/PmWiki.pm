@@ -45,7 +45,7 @@ sub rules {
 
     table => { start => \&_table_start, block => 1 },
     tr    => { start => "\n||", line_format => 'single' },
-    td    => { start => \&_td_start, end => \&_td_end },
+    td    => { start => \&_td_start, end => \&_td_end, trim => 1 },
     th    => { alias => 'td' }
   );
 

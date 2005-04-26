@@ -9,7 +9,8 @@ use HTML::WikiConverter;
 my $wc = new HTML::WikiConverter(
   dialect => 'MediaWiki',
   base_uri => 'http://www.test.com',
-  wiki_uri => 'http://www.test.com/wiki/'
+  wiki_uri => 'http://www.test.com/wiki/',
+  wrap_in_html => 1
 );
 
 foreach my $test ( @tests ) {
@@ -28,6 +29,12 @@ is(
 );
 
 __DATA__
+wrap in html
+<a href="http://google.com">GOOGLE</a><br/>
+NewLine
+++
+[http://google.com GOOGLE]<br /> NewLine
+++++
 bold
 <html><b>bold</b></html>
 ++
@@ -382,6 +389,11 @@ strip editsection
 This is
 
 great
+++++
+escape bracketed urls
+<html><p>This is a text node with what looks like an ext. link [http://example.org].</p></html>
+++
+This is a text node with what looks like an ext. link <nowiki>[http://example.org]</nowiki>.
 ++++
 complete example
 <html>

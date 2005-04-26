@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.21
+HTML::WikiConverter version 0.22
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter, capable of
@@ -18,8 +18,12 @@ Converting HTML to wiki markup is easy:
   my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
   print $wc->html2wiki( $html );
 
-If you'd like to try the module out before installing, there's
-a Web interface to HTML::WikiConverter available at:
+This package also comes with html2wiki, a command line interface to
+HTML::WikiConverter. It can be used like so:
+
+  % html2wiki --dialect MediaWiki input.html > output.mw
+
+Having commitment issues? Try before you buy:
 
   http://diberri.dyndns.org/html2wiki.html
 
@@ -29,7 +33,7 @@ The easiest way to install this module is via the cpan script:
 
   % cpan install HTML::WikiConverter
 
-although you can always:
+Or if you'd prefer:
 
   % perl Makefile.PL
   % make
@@ -40,8 +44,16 @@ DEPENDENCIES
 
   HTML::TreeBuilder for building HTML syntax trees.
   URI for converting relative to absolute URIs.
+  Getopt::Long for html2wiki command line interface
 
 CHANGES
+
+  Version 0.22
+    * Added 'wrap_in_html' argument so HTML fragments aren't ignored
+      by HTML::TreeBuilder
+    * Escaped bracketed content that shouldn't be interpreted as an
+      external link reference in MediaWiki
+    * Added 'html2wiki' command line interface
   Version 0.21
     * Lots of documentation cleanup
     * Fixed whitespace trimming bug that broke certain markup
@@ -54,7 +66,7 @@ CHANGES
     * Added support for Kwiki, MediaWiki, MoinMoin, PhpWiki, and
       UseMod wiki dialects
 
-COPYRIGHT AND LICENCE
+COPYRIGHT
 
 Copyright (c) 2004-2005 David J. Iberri
 

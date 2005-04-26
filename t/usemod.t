@@ -19,6 +19,11 @@ foreach my $test ( @tests ) {
 }
 
 __DATA__
+line break
+<html><p>line 1<br/>line 2</p></html>
+++
+line 1<br>line 2
+++++
 bold
 <html><b>bold</b></html>
 ++

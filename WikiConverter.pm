@@ -5,12 +5,13 @@ use strict;
 use URI;
 use HTML::TreeBuilder;
 use vars '$VERSION';
-$VERSION = '0.21';
+$VERSION = '0.22';
 
 my %defaults = (
   dialect => undef,   # (Required) Which wiki dialect to use
   base_uri => '',     # Base URI for relative links
   wiki_uri => '',     # Wiki URI for wiki links
+  wrap_in_html => 0,  # Wrap HTML in <html> and </html>
 );
 
 sub new {
@@ -47,8 +48,17 @@ sub wiki_uri {
   return $self->{wiki_uri} || '';
 }
 
+sub wrap_in_html {
+  my( $self, $wrap_in_html ) = @_;
+  $self->{wrap_in_html} = $wrap_in_html if defined $wrap_in_html;
+  return $self->{wrap_in_html} || '';
+}
+
 sub html2wiki {
   my( $self, $html ) = @_;
+
+  return unless $html;
+  $html = "<html>$html</html>" if $self->wrap_in_html;
 
   my $tree = new HTML::TreeBuilder();
   $tree->p_strict(1);
@@ -221,6 +231,7 @@ sub _rel2abs_uri {
 # container elements cannot contain text. This is intended to
 # remove excess whitespace in these elements.
 my %containers = map { $_ => 1 } qw/ table tr tbody ul ol dl menu /;
+
 sub _rm_invalid_text {
   my( $self, $node ) = @_;
   my $tag = $node->tag || '';
@@ -319,45 +330,90 @@ HTML::WikiConverter - An HTML to wiki markup converter
 
 =head1 DESCRIPTION
 
-HTML::WikiConverter is an HTML to wiki converter. It can convert HTML
+C<HTML::WikiConverter> is an HTML to wiki converter. It can convert HTML
 source into a variety of wiki markups, called wiki "dialects".
 
 =head1 METHODS
 
 =over
 
-=item $wc = new HTML::WikiConverter( dialect => '...', [ %attrs ] )
+=item new
 
-Returns a converter for the specified dialect. Dies if 'dialect' is
-not provided or is not installed on your system. Additional parameters
-are optional and can be specified in %attrs:
+  my $wc = new HTML::WikiConverter( dialect => $dialect, %attrs );
+
+Returns a converter for the specified dialect. Dies if C<$dialect> is
+not provided or is not installed on your system. (See L<Supported
+dialects> for a list of supported dialects.) Additional parameters are
+optional and can be included in C<%attrs>:
 
   base_uri
     URI to use for converting relative URIs to absolute ones
 
   wiki_uri
-    URI used in determining which links are wiki links. For
-    example, the English Wikipedia would use 'http://en.wikipedia.org/wiki/'
+    URI used in determining which links are wiki links. For example,
+    the English Wikipedia would use 'http://en.wikipedia.org/wiki/'
 
-=item $wiki = $wc->html2wiki( $html )
+  wrap_in_html
+    Helps C<HTML::TreeBuilder> parse HTML fragments by wrapping HTML
+    in <html> and </html> before passing it through html2wiki()
+
+=item html2wiki
+
+  my $wiki = $wc->html2wiki( $html );
 
 Converts the HTML source into wiki markup for the current dialect.
 
-=item $html = $wc->parsed_html
+=item parsed_html
+
+  my $html = $wc->parsed_html;
 
 Returns the HTML representative of the last-parsed syntax tree. Use
-this to see how your input HTML was parsed internally, often useful
-for debugging.
+this to see how your input HTML was parsed internally, which is often
+useful for debugging.
 
-=item $base_uri = $wc->base_uri( [ $new_base_uri ] )
+=item base_uri
 
-Gets or sets the 'base_uri' option used for converting relative to
+  my $base_uri = $wc->base_uri;
+  $wc->base_uri( $new_base_uri );
+
+Gets or sets the C<base_uri> option used for converting relative to
 absolute URIs.
 
-=item $wiki_uri = $wc->wiki_uri( [ $new_wiki_uri ] )
+=item wiki_uri
 
-Gets or sets the 'wiki_uri' option used for determining which links
+  my $wiki_uri = $wc->wiki_uri;
+  $wc->wiki_uri( $new_wiki_uri );
+
+Gets or sets the C<wiki_uri> option used for determining which links
 are links to wiki pages.
+
+=item wrap_in_html
+
+  my $wrap_in_html = $wc->wrap_in_html;
+  $wc->wrap_in_html( $new_wrap_in_html );
+
+Gets or sets the C<wrap_in_html> option used to help
+C<HTML::TreeBuilder> parse (broken) fragments of HTML that aren't
+contained within a parent element. For example, the following HTML
+fragment causes trouble:
+
+  Hello<br> goodbye.
+
+This is parsed by C<HTML::TreeBuilder> as:
+
+  <html>
+    <head>
+    </head>
+    <body>
+      <p><~text text="Hello"></~text><br>
+    </body>
+  </html>
+
+Note that the string " goodbye" is missing. This can be resolved by
+wrapping the HTML fragment in a parent element. In many cases a
+E<lt>pE<gt> tag is appropriate, but it the general case E<lt>htmlE<gt>
+is preferred: it has no meaning to wiki dialects and therefore has
+very little chance of interfering with HTML-to-wiki conversion.
 
 =back
 
@@ -367,31 +423,48 @@ These methods are for use only by dialect modules.
 
 =over
 
-=item $wiki = $wc->get_elem_contents( $node )
+=item get_elem_contents
 
-Converts the contents of $node (i.e. its children) into wiki markup.
+  my $wiki = $wc->get_elem_contents( $node );
 
-=item $title = $wc->get_wiki_page( $url )
+Converts the contents of C<$node> (i.e. its children) into wiki markup
+and returns the resulting wiki markup.
+
+=item get_wiki_page
+
+  my $title = $wc->get_wiki_page( $url );
 
 Attempts to extract the title of a wiki page from the given URL,
-returning the title on success, undef on failure. If 'wiki_uri' is
-empty, this method always return undef.
+returning the title on success, undef on failure. If C<wiki_uri> is
+empty, this method always return C<undef>. Assumes that URLs to wiki
+pages are constructed using I<E<lt>wiki-uriE<gt>E<lt>page-nameE<gt>>.
 
-=item $bool = $wc->is_camel_case( $str )
+=item is_camel_case
 
-Returns true if the string in $str is in CamelCase, false
-otherwise. Code is taken from CGI::Kwiki's formatting module.
+  my $ok = $wc->is_camel_case( $str );
 
-=item $attr_str = $wc->get_attr_str( $node, @attrs )
+Returns true if C<$str> is in CamelCase, false
+otherwise. CamelCase-ness is determined using the same rules as
+L<CGI::Kwiki>'s formatting module uses.
+
+=item get_attr_str
+
+  my $attr_str = $wc->get_attr_str( $node, @attrs );
 
 Returns a string containing the specified attributes in the given
 node. The returned string is suitable for insertion into an HTML tag.
+For example, if C<$node> refers to the HTML
+
+  <style id="ht" class="head" onclick="editPage()">Header</span>
+
+and C<@attrs> contains "id" and "class", then C<get_attr_str> will
+return 'id="ht" class="head"'.
 
 =back
 
 =head1 DIALECTS
 
-HTML::WikiConverter can convert HTML into markup for a variety of wiki
+C<HTML::WikiConverter> can convert HTML into markup for a variety of wiki
 engines. The markup used by a particular engine is called a wiki
 markup dialect. Support is added for dialects by installing dialect
 modules which provide the rules for how HTML is converted into that
@@ -405,7 +478,7 @@ C<HTML::WikiConverter::PhpWiki>.
 
 =head2 Supported dialects
 
-HTML::WikiConverter supports conversions for the following dialects:
+C<HTML::WikiConverter> supports conversions for the following dialects:
 
   Kwiki
   MediaWiki
@@ -424,8 +497,8 @@ Wikipediholic, after all. :-)
 
 =head2 Conversion rules
 
-To interface with HTML::WikiConverter, dialect modules must define a
-single C<rules()> class method. It returns a reference to a hash of
+To interface with C<HTML::WikiConverter>, dialect modules must define a
+single C<rules> class method. It returns a reference to a hash of
 rules that specify how individual HTML elements are converted to wiki
 markup. The following rules are recognized:
 
@@ -446,7 +519,7 @@ markup. The following rules are recognized:
   trim_leading
   trim_trailing
 
-For example, the following C<rules()> method could be used for a wiki
+For example, the following C<rules> method could be used for a wiki
 dialect that uses *asterisks* for bold and _underscores_ for italic
 text:
 
@@ -542,8 +615,8 @@ rule.)
 Instead of simple strings, you may use coderefs as option values for
 the 'start', 'end', 'replace', and 'line_prefix' rules. If you do, the
 code will be called with three arguments: 1) the current
-HTML::WikiConverter instance, 2) the current HTML::Element node, and
-3) the rules for that node (as a hashref).
+C<HTML::WikiConverter> instance, 2) the current L<HTML::Element> node,
+and 3) the rules for that node (as a hashref).
 
 Specifying rules dynamically is often useful for handling nested
 elements. For example, the MoinMoin dialect uses the following rules
@@ -553,7 +626,7 @@ for lists:
   li => { start => \&_li_start, trim_leading => 1 }
   ol => { alias => 'ul' }
 
-It then defines _li_start() like so:
+It then defines C<_li_start> like so:
 
   sub _li_start {
     my( $wc, $node, $rules ) = @_;
@@ -579,26 +652,30 @@ combinations will trigger an error when the dialect module is loaded.
 =head2 Preprocessing
 
 The first step in converting HTML source to wiki markup is to parse
-the HTML into a syntax tree using C<HTML::TreeBuilder>. It is often
+the HTML into a syntax tree using L<HTML::TreeBuilder>. It is often
 useful for dialects to preprocess the tree prior to converting it into
 wiki markup. Dialects that elect to preprocess the tree do so by
-defining a C<preprocess_node()> class method, which will be called on
+defining a C<preprocess_node> class method, which will be called on
 each node of the tree (traversal is done in pre-order). The method
 receives three arguments: 1) the dialect's package name, 2) the
-current HTML::WikiConverter instance, and 3) the current HTML::Element
-node being traversed. It may modify the node or decide to ignore it.
-The return value of the C<preprocess_node()> method is not used.
+current C<HTML::WikiConverter> instance, and 3) the current
+L<HTML::Element> node being traversed. It may modify the node or
+decide to ignore it.  The return value of the C<preprocess_node>
+method is not used.
 
 Because they are so commonly needed, two preprocessing steps are
-automatically carried out by HTML::WikiConverter, regardless of the
+automatically carried out by C<HTML::WikiConverter>, regardless of the
 dialect: 1) relative URIs in images and links are converted to
 absolute URIs (based upon the 'base_uri' parameter), and 2) ignorable
 text (e.g. between E<lt>/tdE<gt> and E<lt>tdE<gt>) is discarded.
 
+=head1 BUGS
+
+Please report bugs using http://rt.cpan.org.
+
 =head1 SEE ALSO
 
-  HTML::TreeBuilder
-  HTML::Element
+L<HTML::TreeBuilder>, L<HTML::Element>
 
 =head1 AUTHOR
 
