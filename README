@@ -1,10 +1,11 @@
-HTML::WikiConverter version 0.22
+HTML::WikiConverter version 0.23
 ================================
 
-HTML::WikiConverter is an HTML to wiki converter, capable of
+HTML::WikiConverter is an HTML to wiki converter capable of
 converting HTML source into a variety of wiki dialects. Supported
 dialects include:
 
+  DocuWiki
   Kwiki
   MediaWiki
   MoinMoin
@@ -18,12 +19,13 @@ Converting HTML to wiki markup is easy:
   my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
   print $wc->html2wiki( $html );
 
-This package also comes with html2wiki, a command line interface to
-HTML::WikiConverter. It can be used like so:
+You can even use the convenient command line interface:
 
   % html2wiki --dialect MediaWiki input.html > output.mw
 
-Having commitment issues? Try before you buy:
+COMMITTMENT ISSUES?
+
+Try before you buy:
 
   http://diberri.dyndns.org/html2wiki.html
 
@@ -31,7 +33,7 @@ INSTALLATION
 
 The easiest way to install this module is via the cpan script:
 
-  % cpan install HTML::WikiConverter
+  % cpan HTML::WikiConverter
 
 Or if you'd prefer:
 
@@ -42,12 +44,23 @@ Or if you'd prefer:
 
 DEPENDENCIES
 
-  HTML::TreeBuilder for building HTML syntax trees.
-  URI for converting relative to absolute URIs.
-  Getopt::Long for html2wiki command line interface
+  * HTML::Tree for building and manipulating HTML trees
+  * URI for handling URIs in links
+  * Getopt::Long for html2wiki's command line interface
 
 CHANGES
 
+  Version 0.23
+    * add DocuWiki dialect (with thanks to Thomas J. Messenger)
+    * (bug 12441) allow dialects to post-process wiki markup
+    * (bug 12440) add 'empty' rule for elements with no content
+    * (bug 12439) unknown HTML elements no longer ignored
+    * (bug 12396) added command line tool bin/html2wiki
+    * (bug 12395) MoinMoin: added post-processing step in MoinMoin
+                  dialect to replace "URL[[BR]]" with "URL [[BR]]"
+    * (bug 12433) MediaWiki: added missing attributes for <tr>; included
+                  complete set of whitelisted tags and attributes from
+                  Sanitizer.php
   Version 0.22
     * Added 'wrap_in_html' argument so HTML fragments aren't ignored
       by HTML::TreeBuilder

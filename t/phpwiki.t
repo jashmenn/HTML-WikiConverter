@@ -19,6 +19,53 @@ foreach my $test ( @tests ) {
 }
 
 __DATA__
+pre
+<html>
+<pre>
+Device ID                 : 0
+Device Revision           : 0
+Firmware Revision         : 1.71
+IPMI Version              : 1.0
+Manufacturer ID           : 674
+Product ID                : 1 (0x0001)
+Device Available          : yes
+Provides Device SDRs      : yes
+Additional Device Support :
+    Sensor Device
+    SDR Repository Device
+    SEL Device
+    FRU Inventory Device
+    IPMB Event Receiver
+Aux Firmware Rev Info     :
+    0x00
+    0x00
+    0x00
+    0x00
+</pre>
+</html>
+++
+<pre>
+Device ID                 : 0
+Device Revision           : 0
+Firmware Revision         : 1.71
+IPMI Version              : 1.0
+Manufacturer ID           : 674
+Product ID                : 1 (0x0001)
+Device Available          : yes
+Provides Device SDRs      : yes
+Additional Device Support :
+    Sensor Device
+    SDR Repository Device
+    SEL Device
+    FRU Inventory Device
+    IPMB Event Receiver
+Aux Firmware Rev Info     :
+    0x00
+    0x00
+    0x00
+    0x00
+</pre>
+++++
 bold
 <html><b>bold</b></html>
 ++

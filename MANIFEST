@@ -4,6 +4,7 @@ MANIFEST
 README
 Changes
 WikiConverter.pm
+WikiConverter/DocuWiki.pm
 WikiConverter/Kwiki.pm
 WikiConverter/MediaWiki.pm
 WikiConverter/MoinMoin.pm
@@ -11,6 +12,7 @@ WikiConverter/PhpWiki.pm
 WikiConverter/PmWiki.pm
 WikiConverter/UseMod.pm
 t/1.t
+t/docuwiki.t
 t/kwiki.t
 t/mediawiki.t
 t/moinmoin.t

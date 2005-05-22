@@ -149,4 +149,17 @@ sub _caption2para {
   $caption->tag('p');
 }
 
+my @protocols = qw( http https mailto );
+my $urls  = '(' . join('|', @protocols) . ')';
+my $ltrs  = '\w';
+my $gunk  = '\/\#\~\:\.\?\+\=\&\%\@\!\-';
+my $punc  = '\.\:\?\-\{\(\)\}';
+my $any   = "${ltrs}${gunk}${punc}";
+my $url_re = "\\b($urls:\[$any\]+?)(?=\[$punc\]*\[^$any\])";
+
+sub postprocess_output {
+  my( $pkg, $wc, $outref ) = @_;
+  $$outref =~ s/($url_re)\[\[BR\]\]/$1 [[BR]]/go;
+}
+
 1;

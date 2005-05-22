@@ -5,13 +5,13 @@ use strict;
 use URI;
 use HTML::TreeBuilder;
 use vars '$VERSION';
-$VERSION = '0.22';
+$VERSION = '0.23';
 
 my %defaults = (
-  dialect => undef,   # (Required) Which wiki dialect to use
-  base_uri => '',     # Base URI for relative links
-  wiki_uri => '',     # Wiki URI for wiki links
-  wrap_in_html => 0,  # Wrap HTML in <html> and </html>
+  dialect      => undef, # (Required) Which wiki dialect to use
+  base_uri     => '',    # Base URI for relative links
+  wiki_uri     => '',    # Wiki URI for wiki links
+  wrap_in_html => 0,     # Wrap HTML in <html> and </html>
 );
 
 sub new {
@@ -63,6 +63,7 @@ sub html2wiki {
   my $tree = new HTML::TreeBuilder();
   $tree->p_strict(1);
   $tree->implicit_body_p_tag(1);
+  $tree->ignore_unknown(0);
   $tree->parse($html);
 
   # Preprocess the tree, giving dialect classes an opportunity to make
@@ -75,17 +76,9 @@ sub html2wiki {
 
   # Convert HTML to wiki markup
   my $output = $self->_wikify($tree);
-  
-  # Clean up newlines
-  $output =~ s/\n[\s^\n]+\n/\n\n/g;
-  $output =~ s/\n{2,}/\n\n/g;
 
-  # Trim leading newlines and trailing whitespace; in supported wikis,
-  # leading spaces likely have meaning, so we can't muck with 'em.
-  # Leading and trailing newlines shouldn't be significant at all, so
-  # we can safely discard them.
-  $output =~ s/^\n+//s;
-  $output =~ s/\s+$//s;
+  # Post-process wiki markup
+  $self->_postprocess_output(\$output);
 
   # Delete the HTML syntax tree to prevent memory leaks
   $tree->delete();
@@ -118,7 +111,7 @@ sub _wikify {
     # precedence over the other two rules.
     if( $rules->{preserve} ) {
       $rules->{start} = \&_preserve_start,
-      $rules->{end} = '</'.$node->tag.'>';
+      $rules->{end} = $rules->{empty} ? undef : '</'.$node->tag.'>';
     }
 
     # Apply replacement
@@ -186,9 +179,10 @@ sub _preserve_start {
   my $tag = $node->tag;
   my @attrs = exists $rules->{attributes} ? @{$rules->{attributes}} : ( );
   my $attr_str = $self->get_attr_str( $node, @attrs );
+  my $slash = $rules->{empty} ? ' /' : '';
 
-  return '<'.$tag.' '.$attr_str.'>' if $attr_str;
-  return '<'.$tag.'>';
+  return '<'.$tag.' '.$attr_str.$slash.'>' if $attr_str;
+  return '<'.$tag.$slash.'>';
 }
 
 # Maps tag name to the attribute that should contain an absolute URI
@@ -242,6 +236,27 @@ sub _rm_invalid_text {
   }
 }
 
+# Post-process wiki markup, esp. newlines
+sub _postprocess_output {
+  my( $self, $outref ) = @_;
+
+  # Clean up newlines
+  $$outref =~ s/\n[\s^\n]+\n/\n\n/g;
+  $$outref =~ s/\n{2,}/\n\n/g;
+
+  # Trim leading newlines and trailing whitespace; in supported wikis,
+  # leading spaces likely have meaning, so we can't muck with 'em.
+  # Leading and trailing newlines shouldn't be significant at all, so
+  # we can safely discard them.
+  $$outref =~ s/^\n+//s;
+  $$outref =~ s/\s+$//s;
+
+  my $dc = $self->{dialect_class};
+  if( $dc->can('postprocess_output') ) {
+    $dc->postprocess_output( $self, $outref );
+  }
+}
+
 # Specifies what rule combinations are allowed. For example, 'trim'
 # cannot be specified alongside 'trim_leading' or 'trim_trailing'.
 # And 'replace' cannot be used in combination with any other rule,
@@ -252,7 +267,8 @@ my %rule_spec = (
   replace    => { singleton => 1 },
   alias      => { singleton => 1 },
   preserve   => { disallow => [ qw/ start end / ] },
-  attributes => { require  => [ qw/ preserve / ] },
+  attributes => { require => [ qw/ preserve / ] },
+  empty      => { require => [ qw/ preserve / ] },
 );
 
 # Ensures that the dialect's rules are valid, according to %rule_spec
@@ -480,6 +496,7 @@ C<HTML::WikiConverter::PhpWiki>.
 
 C<HTML::WikiConverter> supports conversions for the following dialects:
 
+  DocuWiki
   Kwiki
   MediaWiki
   MoinMoin
@@ -507,6 +524,7 @@ markup. The following rules are recognized:
 
   preserve
   attributes
+  empty
 
   replace
   alias
@@ -610,6 +628,25 @@ also passthrough from HTML to wiki markup. This is done with the
 (The 'attributes' rule must be used in conjunction with the 'preserve'
 rule.)
 
+Some HTML elements have no content (e.g. line breaks), and should be
+preserved specially. To indicate that a preserved tag should have no
+content, use the 'empty' rule. This will cause the element to be
+replaced with "<tag />", with no end tag and any attributes you
+specified. For example, the MediaWiki dialect handles line breaks like
+so:
+
+  br => {
+    preserve => 1,
+    attributes => qw/ id class title style clear /,
+    empty => 1
+  }
+
+This will convert, e.g., "<br clear='both'>" into "<br clear='both'
+/>".  Without specifying the 'empty' rule, this would be converted
+into the undesirable "<br clear='both'></br>".
+
+(The 'empty' rule requires that 'preserve' is also specified.)
+
 =head2 Dynamic rules
 
 Instead of simple strings, you may use coderefs as option values for
@@ -668,6 +705,32 @@ automatically carried out by C<HTML::WikiConverter>, regardless of the
 dialect: 1) relative URIs in images and links are converted to
 absolute URIs (based upon the 'base_uri' parameter), and 2) ignorable
 text (e.g. between E<lt>/tdE<gt> and E<lt>tdE<gt>) is discarded.
+
+=head2 Postprocessing
+
+Once the work of converting HTML, it is sometimes useful to
+postprocess the resulting wiki markup. Postprocessing can be used
+to clean up whitespace, fix subtle bugs in the markup that can't
+otherwise be done in the original conversion, etc.
+
+Dialects that want to postprocess the wiki markup should define a
+C<postprocess_output> class method that will be called just before
+C<HTML::WikiConverter>'s C<output> method returns to the client. The
+method will be passed three arguments: 1) the dialect's package name,
+2) the current C<HTML::WikiConverter> instance, and 3) a reference to
+the wiki markup. It may modify the wiki markup that the reference
+points to. The return value of C<postprocess_output> is ignored.
+
+For example, to convert a series of line breaks to be replaced with
+a pair of newlines, a dialect might implement this:
+
+  sub postprocess_output {
+    my( $pkg, $wc, $outref ) = @_;
+    $$outref =~ s/<br>\s*<br>/\n\n/g;
+  }
+
+(This example assumes that HTML line breaks were replaced with
+C<E<lt>brE<gt>> in the wiki markup.)
 
 =head1 BUGS
 

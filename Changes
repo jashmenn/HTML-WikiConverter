@@ -1,16 +1,28 @@
 # Change log for HTML::WikiConverter
 
-version: 0.22
-date:    ??
+version: 0.23
+date:    Sat May 22 02:19:00 PDT 2005
+ - add DocuWiki dialect (with thanks to Thomas J. Messenger)
+ - (bug 12441) allow dialects to post-process wiki markup
+ - (bug 12440) add 'empty' rule for elements with no content
+ - (bug 12439) unknown HTML elements no longer ignored
  - (bug 12396) added command line tool bin/html2wiki
+ - (bug 12395) MoinMoin: added post-processing step in MoinMoin
+               dialect to replace "URL[[BR]]" with "URL [[BR]]"
+ - (bug 12433) MediaWiki: added missing attributes for <tr>; included
+               complete set of whitelisted tags and attributes from
+               Sanitizer.php
+
+version: 0.22
+date:    Mon Apr 25 09:04:31 PDT 2005
  - (bug 12393) added 'wrap_in_html' option to wrap HTML input in
-   <html> and </html> prior to wiki conversion
- - (bug 12303) bracketed content is nowiki-escaped if it resembles an
-    external link reference in MediaWiki dialect
-  - add <td> whitespace trimming to PmWiki dialect
+               <html> and </html> prior to wiki conversion
+ - (bug 12303) MediaWiki: bracketed content is nowiki-escaped if it
+               resembles an external link reference
+ - (bug 12438) PmWiki: add <td> whitespace trimming
 
 version: 0.21
-date:    Thu Mar 17 13:36:00 2005
+date:    Thu Mar 17 13:36:00 PDT 2005
  - misc. documentation fixes
  - use '' as default return value from base_uri() method
  - add 'wiki_uri' parameter to specify how wiki links are formed
@@ -43,7 +55,7 @@ date:    Thu Mar 17 13:36:00 2005
     - add <caption> preprocessing as in Kwiki
 
 version: 0.20
-date:    Sat Mar 12 00:59:29 2005
+date:    Sat Mar 12 00:59:29 PDT 2005
  - complete rewrite, significant API changes
  - added support for Kwiki, MediaWiki, MoinMoin, PhpWiki, and UseMod
 

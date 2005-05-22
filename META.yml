@@ -1,11 +1,11 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         HTML-WikiConverter
-version:      0.22
+version:      0.23
 version_from: WikiConverter.pm
 installdirs:  site
 requires:
-    HTML::TreeBuilder:             3.13
+    HTML::Tree:                    3.18
     URI:                           1.35
 
 distribution_type: module

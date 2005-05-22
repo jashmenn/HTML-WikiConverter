@@ -6,12 +6,18 @@ use URI;
 use File::Basename;
 
 my @common_attrs = qw/ id class lang dir title style /;
+my @block_attrs = ( @common_attrs, 'align' );
+my @tablealign_attrs = qw/ align char charoff valign /;
+my @tablecell_attrs = qw(
+  abbr axis headers scope rowspan
+  colspan nowrap width height
+);
 
 sub rules {
   # HTML attributes common to all preserved tags
   my %rules = (
     hr => { replace => "\n----\n" },
-    br => { replace => '<br />' },
+    br => { preserve => 1, empty => 1, attributes => [ qw/id class title style clear/ ] },
 
     p      => { block => 1, trim => 1, line_format => 'multi' },
     i      => { start => "''", end => "''", line_format => 'single' },
@@ -20,16 +26,11 @@ sub rules {
     strong => { alias => 'b' },
     pre    => { line_prefix => ' ', block => 1 },
 
-    font => {
-      preserve => 1,
-      attributes => [ @common_attrs, qw/ size color face / ]
-    },
-
     table   => { start => \&_table_start, end => "|}", block => 1, line_format => 'blocks' },
     tr      => { start => \&_tr_start },
     td      => { start => \&_td_start, end => "\n", trim => 1, line_format => 'blocks' },
     th      => { start => \&_td_start, end => "\n", trim => 1, line_format => 'single' },
-    caption => { start => "|+ ", end => "\n", line_format => 'single' },
+    caption => { start => \&_caption_start, end => "\n", line_format => 'single' },
 
     img => { replace => \&_image },
     a   => { replace => \&_link },
@@ -45,17 +46,85 @@ sub rules {
     li => { start => \&_li_start, trim_leading => 1 },
     dt => { alias => 'li' },
     dd => { alias => 'li' },
+
+    # Preserved elements, from MediaWiki's Sanitizer.php; see
+    # http://tinyurl.com/dzj6o
+
+    # 7.5.4
+    div    => { preserve => 1, attributes => \@block_attrs },
+    center => { preserve => 1, attributes => \@common_attrs },
+    span   => { preserve => 1, attributes => \@block_attrs },
+    
+    # 7.5.5
+    # h1-6 -> wikitext
+
+    # 7.5.6
+    # address
+    
+    # 8.2.4
+    # bdo
+    
+    # 9.2.1
+    # em -> wikitext
+    # strong -> wikitext
+    cite => { preserve => 1, attributes => \@common_attrs },
+    # dfn
+    code => { preserve => 1, attributes => \@common_attrs },
+    # samp
+    # kbd
+    var  => { preserve => 1, attributes => \@common_attrs },
+    # abbr
+    # acronym
+
+    # 9.2.2
+    blockquote => { preserve => 1, attributes => [ @common_attrs, qw/ cite / ] },
+    # q
+    
+    # 9.2.3
+    sup => { preserve => 1, attributes => \@common_attrs },
+    sub => { preserve => 1, attributes => \@common_attrs },
+
+    # 9.3.1
+    # p -> wikitext
+
+    # 9.4
+    del => { preserve => 1, attributes => [ @common_attrs, qw/ cite datetime / ] },
+    ins => { alias => 'del' },
+
+    # 10.2
+    # ul, ol, li -> wikitext
+
+    # 10.3
+    # dl, dd, dt -> wikitext
+
+    # 15.2.1
+    tt     => { preserve => 1, attributes => \@common_attrs },
+    # b, i -> wikitext
+    big    => { preserve => 1, attributes => \@common_attrs },
+    small  => { preserve => 1, attributes => \@common_attrs },
+    strike => { preserve => 1, attributes => \@common_attrs },
+    s      => { preserve => 1, attributes => \@common_attrs },
+    u      => { preserve => 1, attributes => \@common_attrs },
+    
+    # 15.2.2
+    font => { preserve => 1, attributes => [ @common_attrs, qw/ size color face / ] },
+    # basefont
+
+    # 15.3
+    # hr -> wikitext
+
+    # XHTML Ruby annotation
+    ruby => { preserve => 1, attributes => \@common_attrs },
+    # rbc
+    # rtc
+    rb => { preserve => 1, attributes => \@common_attrs },
+    rt => { preserve => 1, attributes => \@common_attrs },
+    rp => { preserve => 1, attributes => \@common_attrs },
   );
 
   # Disallowed HTML tags
   my @stripped_tags = qw/ head title script style meta link object /;
-
-  # HTML tags allowed in wiki markup
-  my @preserved_tags= qw/ div center span blockquote cite var code tt
-                          sup sub strike s u del ins ruby rt rb rp big small /;
-
   $rules{$_} = { replace => '' } foreach @stripped_tags;
-  $rules{$_} = { preserve=>1, attributes=>\@common_attrs } foreach @preserved_tags;
 
   # Headings (h1-h6)
   my @headings = ( 1..6 );
@@ -121,7 +190,12 @@ sub _table_start {
   my( $wc, $node, $rules ) = @_;
   my $prefix = '{|';
 
-  my @table_attrs = ( @common_attrs, qw/ border cellpadding cellspacing align bgcolor / );
+  my @table_attrs = (
+    @common_attrs, 
+    qw/ summary width border frame rules cellspacing
+        cellpadding align bgcolor frame rules /
+  );
+
   my $attrs = $wc->get_attr_str( $node, @table_attrs );
   $prefix .= ' '.$attrs if $attrs;
 
@@ -132,7 +206,7 @@ sub _tr_start {
   my( $wc, $node, $rules ) = @_;
   my $prefix = '|-';
   
-  my @tr_attrs = ( @common_attrs, qw/ bgcolor / );
+  my @tr_attrs = ( @common_attrs, 'bgcolor', @tablealign_attrs );
   my $attrs = $wc->get_attr_str( $node, @tr_attrs );
   $prefix .= ' '.$attrs if $attrs;
 
@@ -150,7 +224,7 @@ sub _td_start {
   my( $wc, $node, $rules ) = @_;
   my $prefix = $node->tag eq 'th' ? '!' : '|';
 
-  my @td_attrs = ( @common_attrs, qw/ bgcolor align valign colspan rowspan / );
+  my @td_attrs = ( @common_attrs, @tablecell_attrs, @tablealign_attrs, 'bgcolor' );
   my $attrs = $wc->get_attr_str( $node, @td_attrs );
   $prefix .= ' '.$attrs.' |' if $attrs;
 
@@ -162,22 +236,55 @@ sub _td_start {
   return $prefix.$space;
 }
 
+sub _caption_start {
+  my( $wc, $node, $rules ) = @_;
+  my $prefix = '|+ ';
+
+  my @caption_attrs = ( @common_attrs, 'align' );
+  my $attrs = $wc->get_attr_str( $node, @caption_attrs );
+  $prefix .= $attrs.' |' if $attrs;
+
+  return $prefix;
+}
+
 sub preprocess_node {
   my( $pkg, $wc, $node ) = @_;
   my $tag = $node->tag || '';
   $pkg->_strip_extra($wc, $node);
   $pkg->_strip_aname($wc, $node) if $tag eq 'a';
-  $pkg->_fix_extlinks_in_text($wc, $node) if $tag eq '~text';
+  $pkg->_nowiki_text($wc, $node) if $tag eq '~text';
 }
 
 my $URL_PROTOCOLS = 'http|https|ftp|irc|gopher|news|mailto';
 my $EXT_LINK_URL_CLASS = '[^]<>"\\x00-\\x20\\x7F]';
 my $EXT_LINK_TEXT_CLASS = '[^\]\\x00-\\x1F\\x7F]';
 
-sub _fix_extlinks_in_text {
+# Text nodes matching one or more of these patterns will be enveloped
+# in <nowiki> and </nowiki>
+my @wikitext_patterns = (
+  qr/''/,
+  qr/^(?:\*|\#|\;|\:)/m,
+  qr/^----/m,
+  qr/^\{\|/m,
+  qr/\[\[/m,
+  qr/{{/m,
+);
+
+sub _nowiki_text {
   my( $pkg, $wc, $node ) = @_;
   my $text = $node->attr('text') || '';
-  $text =~ s~(\[\b(?:$URL_PROTOCOLS):$EXT_LINK_URL_CLASS+ *$EXT_LINK_TEXT_CLASS*?\])~<nowiki>$1</nowiki>~go;
+
+  my $found_wikitext = 0;
+  foreach my $pat ( @wikitext_patterns ) {
+    $found_wikitext++, last if $text =~ $pat;
+  }
+
+  if( $found_wikitext ) {
+    $text = "<nowiki>$text</nowiki>";
+  } else {
+    $text =~ s~(\[\b(?:$URL_PROTOCOLS):$EXT_LINK_URL_CLASS+ *$EXT_LINK_TEXT_CLASS*?\])~<nowiki>$1</nowiki>~go;
+  }
+
   $node->attr( text => $text );
 }
 

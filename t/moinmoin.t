@@ -20,6 +20,11 @@ foreach my $test ( @tests ) {
 }
 
 __DATA__
+add space between [[BR]] and URL
+<html><a href="http://example.com">http://example.com</a><br /></html>
+++
+http://example.com [[BR]]
+++++
 wrap in html
 <a href="http://google.com">GOOGLE</a><br/>
 NewLine

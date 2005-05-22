@@ -34,10 +34,12 @@ sub rules {
     h4 => { start => '! ',   block => 1, trim => 1, line_format => 'single' },
     h5 => { start => '! ',   block => 1, trim => 1, line_format => 'single' },
     h6 => { start => '! ',   block => 1, trim => 1, line_format => 'single' },
+
+    pre => { preserve => 1 },
   );
 
   # HTML tags allowed in wiki markup
-  foreach my $tag ( qw/ big small tt abbr acronym cite code dfn kbd samp var sup sub pre / ) {
+  foreach my $tag ( qw/ big small tt abbr acronym cite code dfn kbd samp var sup sub / ) {
     $rules{$tag} = { preserve => 1 }
   }
 

@@ -29,6 +29,131 @@ is(
 );
 
 __DATA__
+werid
+<p><a href="http://example.com">[http://example.com]</a></p>
+++
+[http://example.com <nowiki>[http://example.com]</nowiki>]
+++++
+nowiki template
+<p>mark stubs with {{stub}}</p>
+++
+<nowiki>mark stubs with {{stub}}</nowiki>
+++++
+nowiki quoted
+<p>what happens to 'quoted text'?</p>
+++
+what happens to 'quoted text'?
+++++
+nowiki doubly quoted
+<p>how about ''doubly quoted''?</p>
+++
+<nowiki>how about ''doubly quoted''?</nowiki>
+++++
+nowiki triply quoted
+<p>and '''triply quoted'''?</p>
+++
+<nowiki>and '''triply quoted'''?</nowiki>
+++++
+nowiki hr
+<p>----</p>
+++
+<nowiki>----</nowiki>
+++++
+nowiki ul
+<p>* ul</p>
+++
+<nowiki>* ul</nowiki>
+++++
+nowiki ol
+<p># ol</p>
+++
+<nowiki># ol</nowiki>
+++++
+nowiki def
+<p>; def</p>
+++
+<nowiki>; def</nowiki>
+++++
+nowiki indent
+<p>: indent</p>
+++
+<nowiki>: indent</nowiki>
+++++
+nowiki internal links
+<p>an [[internal]] link</p>
+++
+<nowiki>an [[internal]] link</nowiki>
+++++
+nowiki table markup
+<p>{|<br />
+| table<br />
+|}</p>
+++
+<nowiki>{|</nowiki><br /> | table<br /> |}
+++++
+nowiki ext link
+<p>[http://example.com]</p>
+++
+<nowiki>[http://example.com]</nowiki>
+++++
+tr attributes
+<html><table><tr align="left" valign="top"><td>ok</td></tr></table></html>
+++
+{|
+|- align="left" valign="top"
+| ok
+|}
+++++
+preserve cite
+<html><cite id="good">text</cite></html>
+++
+<cite id="good">text</cite>
+++++
+preserve var
+<html><var id="good">text</var></html>
+++
+<var id="good">text</var>
+++++
+preserve blockquote
+<html><blockquote cite="something" onclick="alert('hello')">text</blockquote></html>
+++
+<blockquote cite="something">text</blockquote>
+++++
+preserve ruby
+<html><ruby>text</ruby></html>
+++
+<ruby>text</ruby>
+++++
+preserve rb
+<html><rb id="ok">text</rb></html>
+++
+<rb id="ok">text</rb>
+++++
+preserve rt
+<html><rt id="ok" blah="blah">text</rt></html>
+++
+<rt id="ok">text</rt>
+++++
+preserve rp
+<html><rp id="ok" something="ok" bad="good" class="stuff">text</rp></html>
+++
+<rp id="ok" class="stuff">text</rp>
+++++
+preserve div
+<html><div id="thing" align="left" bad="good">ok</div></html>
+++
+<div id="thing" align="left">ok</div>
+++++
+empty line break
+<html><br id="thing"></br></html>
+++
+<br id="thing" />
+++++
+br attribs
+<html>ok<br id="stuff" class="things" title="ok" style="clear:both" clear="both"></html>
+++
+ok<br id="stuff" class="things" title="ok" style="clear:both" clear="both" />
+++++
 wrap in html
 <a href="http://google.com">GOOGLE</a><br/>
 NewLine
