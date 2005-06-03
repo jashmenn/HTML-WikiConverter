@@ -1,23 +1,7 @@
-use Test::More;
-
 local $/;
-my @tests = split /\+\+\+\+\n/, <DATA>;
-
-plan tests => scalar @tests;
-
-use HTML::WikiConverter;
-my $wc = new HTML::WikiConverter(
-  dialect => 'MoinMoin',
-  base_uri => 'http://www.test.com',
-  wrap_in_html => 1
-);
-
-foreach my $test ( @tests ) {
-  $test =~ s/^(.*?)\n//; my $name = $1;
-  my( $html, $wiki ) = split /\+\+/, $test;
-  for( $html, $wiki ) { s/^\n+//; s/\n+$// }
-  is( $wc->html2wiki($html), $wiki, $name );
-}
+require 't/runtests.pl';
+runtests( data => <DATA>, dialect => 'MoinMoin' );
+close DATA;
 
 __DATA__
 add space between [[BR]] and URL

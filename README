@@ -1,17 +1,16 @@
-HTML::WikiConverter version 0.23
+HTML::WikiConverter version 0.30
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of
 converting HTML source into a variety of wiki dialects. Supported
 dialects include:
 
-  DocuWiki
-  Kwiki
-  MediaWiki
-  MoinMoin
-  PhpWiki
-  PmWiki
-  UseMod
+  DocuWiki    Kwiki
+  MediaWiki   MoinMoin
+  Oddmuse     PhpWiki
+  PmWiki      SnipSnap
+  TikiWiki    UseMod
+  WakkaWiki
 
 Converting HTML to wiki markup is easy:
 
@@ -31,7 +30,7 @@ Try before you buy:
 
 INSTALLATION
 
-The easiest way to install this module is via the cpan script:
+The easiest way to install this module is via the CPAN shell:
 
   % cpan HTML::WikiConverter
 
@@ -45,39 +44,22 @@ Or if you'd prefer:
 DEPENDENCIES
 
   * HTML::Tree for building and manipulating HTML trees
+  * HTML::Entities for encoding HTML entities
   * URI for handling URIs in links
   * Getopt::Long for html2wiki's command line interface
 
-CHANGES
+CHANGES IN VERSION 0.30
 
-  Version 0.23
-    * add DocuWiki dialect (with thanks to Thomas J. Messenger)
-    * (bug 12441) allow dialects to post-process wiki markup
-    * (bug 12440) add 'empty' rule for elements with no content
-    * (bug 12439) unknown HTML elements no longer ignored
-    * (bug 12396) added command line tool bin/html2wiki
-    * (bug 12395) MoinMoin: added post-processing step in MoinMoin
-                  dialect to replace "URL[[BR]]" with "URL [[BR]]"
-    * (bug 12433) MediaWiki: added missing attributes for <tr>; included
-                  complete set of whitelisted tags and attributes from
-                  Sanitizer.php
-  Version 0.22
-    * Added 'wrap_in_html' argument so HTML fragments aren't ignored
-      by HTML::TreeBuilder
-    * Escaped bracketed content that shouldn't be interpreted as an
-      external link reference in MediaWiki
-    * Added 'html2wiki' command line interface
-  Version 0.21
-    * Lots of documentation cleanup
-    * Fixed whitespace trimming bug that broke certain markup
-    * Added support for table, row, and cell attributes and internal
-      links in MediaWiki dialect
-    * Added wiki link support using the 'wiki_uri' argument
-    * Added PmWiki dialect; http://www.pmwiki.org
-  Version 0.20
-    * New implementation with API changes
-    * Added support for Kwiki, MediaWiki, MoinMoin, PhpWiki, and
-      UseMod wiki dialects
+  * add support for WakkaWiki, SnipSnap, Oddmuse, and TikiWiki (see http://c2.com/cgi/wiki?TopTenWikiEngines)
+  * add DocuWiki support for links, blockquotes, images, and tables
+  * add 'strip_scripts', 'strip_head', and 'strip_comments' options, on by default
+  * allow reading from HTML files using "html2wiki( file => ... )"
+  * (bug 12944, 12303) preserve HTML entities in text nodes
+  * (bug 13017) MediaWiki should allow <i> and <b> to be preserved rather than converting to '' and '''
+  * backend API changes; dialect modules now subclass HTML::WikiConverter
+  * more complete tests using larger input HTML file
+  * document individual dialects
+  * lots of documentation fixes
 
 COPYRIGHT
 

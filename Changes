@@ -1,5 +1,20 @@
 # Change log for HTML::WikiConverter
 
+version: 0.30
+date:    Fri Jun 3 15:55:00 PDT 2005
+ - add support for WakkaWiki, SnipSnap, Oddmuse, and TikiWiki (see http://c2.com/cgi/wiki?TopTenWikiEngines)
+ - add DocuWiki support for links, blockquotes, images, and tables
+ - add 'strip_scripts', 'strip_head', and 'strip_comments' options, on by default
+ - allow 'start' and 'end' rules to be specified with 'preserve' to allow for wiki escaping
+ - allow reading from HTML files using "html2wiki( file => ... )"
+ - (bug 12944, 12303) preserve HTML entities in text nodes
+ - (bug 13017) MediaWiki should allow <i> and <b> to be preserved rather than converting to '' and '''
+ - backend API changes; dialect modules now subclass HTML::WikiConverter
+ - dialects specify their attributes using the attributes() method
+ - more complete tests using larger input HTML file
+ - document individual dialects
+ - lots of documentation fixes
+
 version: 0.23
 date:    Sat May 22 02:19:00 PDT 2005
  - add DocuWiki dialect (with thanks to Thomas J. Messenger)
@@ -7,18 +22,13 @@ date:    Sat May 22 02:19:00 PDT 2005
  - (bug 12440) add 'empty' rule for elements with no content
  - (bug 12439) unknown HTML elements no longer ignored
  - (bug 12396) added command line tool bin/html2wiki
- - (bug 12395) MoinMoin: added post-processing step in MoinMoin
-               dialect to replace "URL[[BR]]" with "URL [[BR]]"
- - (bug 12433) MediaWiki: added missing attributes for <tr>; included
-               complete set of whitelisted tags and attributes from
-               Sanitizer.php
+ - (bug 12395) MoinMoin: added postprocessing step in MoinMoin dialect to replace "URL[[BR]]" with "URL [[BR]]"
+ - (bug 12433) MediaWiki: added complete set of whitelisted tags and attributes from Sanitizer.php
 
 version: 0.22
 date:    Mon Apr 25 09:04:31 PDT 2005
- - (bug 12393) added 'wrap_in_html' option to wrap HTML input in
-               <html> and </html> prior to wiki conversion
- - (bug 12303) MediaWiki: bracketed content is nowiki-escaped if it
-               resembles an external link reference
+ - (bug 12393) added 'wrap_in_html' option to wrap HTML input in <html> and </html> prior to wiki conversion
+ - (bug 12303) MediaWiki: bracketed content is nowiki-escaped if it resembles an external link reference
  - (bug 12438) PmWiki: add <td> whitespace trimming
 
 version: 0.21
@@ -29,11 +39,8 @@ date:    Thu Mar 17 13:36:00 PDT 2005
  - add get_attr_str() and get_wiki_page() utility methods
  - rename elem_contents() to get_elem_contents() for consistency
  - added support for PmWiki
- - fix post-process whitespace trimming that was mucking with
-   significant leading spaces; now only leading newlines and
-   all trailing whitespace is stripped
- - add URI 1.35 requirement (though some earlier versions will
-   probably work)
+ - fix postprocess whitespace trimming bug; only leading newlines and trailing whitespace is trimmed
+ - add URI 1.35 requirement (though some earlier versions will probably work)
  - fix whitespace trimming in test suite
  - added new tests
  - Kwiki-specific changes:
@@ -65,37 +72,24 @@ date:    Wed July 7 12:40:33 PDT 2004
  - remove warnings reported by cpan testers
  - lots of documentation additions
  - MediaWiki changes:
-    - 'wikify_span' now removes elements intended
-      only for URL expansion (as used by the MonoBook skin)
-    - 'wikify_link' does not wikify anchor tags (i.e.
-      A tags must have an HREF attribute)
-    - bug fix: table heading markup like "! bgcolor=black !"
-      is now properly generated as "! bgcolor=black |"
+    - 'wikify_span' now removes elements intended only for URL expansion (as used by the MonoBook skin)
+    - 'wikify_link' does not wikify anchor tags (i.e. A tags must have an HREF attribute)
+    - bug fix: table heading markup like "! bgcolor=black !" is now properly generated as "! bgcolor=black |"
     - TH now accepts a colspan and rowspan attribute
-    - "colspan=1" attribute is now stripped from table cells
-      that only span a single column. Likewise for "rowspan"
-      attribute
+    - "colspan=1" attribute is now stripped from table cells that only span a single column. Likewise for "rowspan"
     - added "taxo_format" option to help format taxoboxes
     - align attribute is now preserved in TH and TD
-    - add "add_nowiki" parameter for adding NOWIKI tags
-      around {{messages}}
+    - add "add_nowiki" parameter for adding NOWIKI tags around {{messages}}
     - table caption handling using "|+" wiki table markup
-    - better nested table handling; a newline is now added
-      before the "{|" for nested tables
-    - improved handling of image thumbnails -- image names
-      like "200px-blahblahblah" refer to thumbnailed images,
-      so "200px-" is now stripped off and "200px" is added
-      to the list of attributes for the [[Image:]] markup
+    - better nested table handling; a newline is now added before the "{|" for nested tables
+    - improved handling of image thumbnails
     - now uses warnings, strict
 
 version: 0.16
 date:    Fri May 28 12:33:14 PDT 2004
  - Added 'elem_style_attr_props' method for parsing the STYLE attribute
- - Tags that are meant to be stripped (e.g. HTML, META, HEAD) no longer
-   need to be explicitly assigned an empty replacement handler (they
-   can simply be excluded from the list of tag handlers)
- - Added handling of non-breaking elements (e.g. in some dialects, such
-   as MediaWiki, P tags should not have any embedded newlines)
+ - Tags that are meant to be stripped (e.g. HTML, META, HEAD) no longer need an empty replacement handler (they can simply be excluded from the list of tag handlers)
+ - Added handling of non-breaking elements (e.g. in some dialects, such as MediaWiki, P tags should not have any embedded newlines)
  - Fixed whitespace handling in H::W::Dialect
  - Documentation additions
  - Added benchmarking option
@@ -103,8 +97,7 @@ date:    Fri May 28 12:33:14 PDT 2004
  - MW: Now supports 'pretty_tables' option for making nice borders/shading
  - MW: Removed arbitrary 20-char limit in conversion of {{...}} magic
  - MW: "[1]"-style links are now handled properly
- - MW: Hex codes/HTML entities in URLs now translated to appropriate char
-   (requires URI::Escape)
+ - MW: Hex codes/HTML entities in URLs now translated to appropriate char (requires URI::Escape)
  - MW: Major list handling cleanup and bug fixes
  - MW: Added new realworld test (my User: page)
 
@@ -126,44 +119,29 @@ date:    Sun May 17 7:18:09 PDT 2004
 changes
  - 'wikify_default' now called 'passthru'
  - NOWIKI blocks are no longer preserved
- - Bug fix: Add newline to HTML msource before wikification --
-   aboids apparent bugs in HTML::TreeBuilder that
-   prevent proper tag handling
+ - Bug fix: Add newline to HTML source before wikification -- avoids apparent bugs in HTML::TreeBuilder that prevent proper tag handling
  - Added trim method
- - Bug fix: Extra whitespace in PRE blocks no longer
-   trimmed
- - Can now handle "[[language]]s" links (with trailing
-   characters)
+ - Bug fix: Extra whitespace in PRE blocks no longer trimmed
+ - Can now handle "[[language]]s" links (with trailing characters)
 
 version: 0.12
 date:    Thu May 14 5:23:08 PDT 2004
 changes:
- - Bug fix: removed reference to non-existent 'has_parent'
-   method within '_elem_has_ancestor' function
- - Bug fix: fixed potential bug in 'wikify_list_item'
-   which used $node->parent->tag eq '...' instead of
-   _elem_has_ancestor($node, '...')
+ - Bug fix: removed reference to non-existent 'has_parent' method within '_elem_has_ancestor' function
+ - Bug fix: fixed potential bug in 'wikify_list_item' which used $node->parent->tag eq '...' instead of _elem_has_ancestor($node, '...')
  - Now supports definition lists via ; and :
  - Now supports indentation via :
  - Replaced code handler for P tag with flank handler
  - Replaced code handler for OL/UL tags with flank handlers
- - Renamed 'wikify_heading' method to 'wikify_h' for
-   consistency with other wikify_* handlers
+ - Renamed 'wikify_heading' method to 'wikify_h' for consistency with other wikify_* handlers
  - NOWIKI blocks are now preserved
- - Introduced beginnings of Unicode support with the
-   use of HTML entities to HTML-escape high-bit characters
+ - Introduced beginnings of Unicode support with the use of HTML entities to HTML-escape high-bit characters
  - Added more tests to t/test.t
 
 version: 0.11
 date:    Sun May 10 1:01:09 PDT 2004
 changes:
- - added wikify_default code handler for tags
-   that should be preserved. (Tags without handlers
-   are removed from the wiki markup by default.
-   So, for example, "<TAG>content</TAG>" becomes
-   "content". By assigning the TAG to wikify_default,
-   the resulting wiki markup is "<tag>content</tag>".)
-   All tag attributes are preserved as well.
+ - added wikify_default code handler for tags that should be preserved.
  - Added wikify_span
  - Now preserves FONT, SUP, and SUB tags
  - SPAN tags are converted into FONT if possible

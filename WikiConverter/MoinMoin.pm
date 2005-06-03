@@ -1,10 +1,11 @@
 package HTML::WikiConverter::MoinMoin;
+use base 'HTML::WikiConverter';
 use warnings;
 use strict;
 
 sub rules {
   my %rules = (
-    p   => { block => 1, trim => 1, line_format => 'multi' },
+    p   => { block => 1, trim => 'both', line_format => 'multi' },
     pre => { block => 1, start => "{{{\n", end => "\n}}}" },
 
     i      => { start => "''", end => "''", line_format => 'single' },
@@ -26,18 +27,18 @@ sub rules {
     ul => { line_format => 'multi', block => 1, line_prefix => '  ' },
     ol => { alias => 'ul' },
 
-    li => { start => \&_li_start, trim_leading => 1 },
+    li => { start => \&_li_start, trim => 'leading' },
 
     dl => { line_format => 'multi' },
-    dt => { trim => 1, end => ':: ' },
-    dd => { trim => 1 },
+    dt => { trim => 'both', end => ':: ' },
+    dd => { trim => 'both' },
 
     hr => { replace => "\n----\n" },
     br => { replace => '[[BR]]' },
 
     table => { block => 1, line_format => 'multi' },
     tr => { end => "||\n", line_format => 'single' },
-    td => { start => \&_td_start, end => ' ', trim => 1 },
+    td => { start => \&_td_start, end => ' ', trim => 'both' },
     th => { alias => 'td' },
   );
 
@@ -51,7 +52,7 @@ sub rules {
       start => $affix.' ',
       end => ' '.$affix,
       block => 1,
-      trim => 1,
+      trim => 'both',
       line_format => 'single'
     };
   }
@@ -65,7 +66,7 @@ my %att2prop = (
 );
 
 sub _td_start {
-  my( $wc, $td, $rules ) = @_;
+  my( $self, $td, $rules ) = @_;
 
   my $prefix = '||';
 
@@ -107,7 +108,7 @@ sub _attrs2style {
 # Calculates the prefix that will be placed before each list item.
 # List item include ordered, unordered, and definition list items.
 sub _li_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $bullet = '';
   $bullet = '*'  if $node->parent->tag eq 'ul';
   $bullet = '1.' if $node->parent->tag eq 'ol';
@@ -115,38 +116,22 @@ sub _li_start {
 }
 
 sub _link {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->get_elem_contents($node) || '';
+  my $text = $self->get_elem_contents($node) || '';
   return $url if $url eq $text;
   return "[$url $text]";
 }
 
 sub _image {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   return $node->attr('src') || '';
 }
 
 sub preprocess_node {
-  my( $pkg, $wc, $node ) = @_;
-  my $tag = $node->tag || '';
-  $pkg->_strip_aname($wc, $node) if $tag eq 'a';
-  $pkg->_caption2para($wc, $node) if $tag eq 'caption';
-}
-
-sub _strip_aname {
-  my( $pkg, $wc, $node ) = @_;
-  return unless $node->attr('name') and $node->parent;
-  return if $node->attr('href');
-  $node->replace_with_content->delete();
-}
-
-sub _caption2para {
-  my( $pkg, $wc, $caption ) = @_;
-  my $table = $caption->parent;
-  $caption->detach();
-  $table->preinsert($caption);
-  $caption->tag('p');
+  my( $self, $node ) = @_;
+  $self->strip_aname($node) if $node->tag eq 'a';
+  $self->caption2para($node) if $node->tag eq 'caption';
 }
 
 my @protocols = qw( http https mailto );
@@ -158,8 +143,40 @@ my $any   = "${ltrs}${gunk}${punc}";
 my $url_re = "\\b($urls:\[$any\]+?)(?=\[$punc\]*\[^$any\])";
 
 sub postprocess_output {
-  my( $pkg, $wc, $outref ) = @_;
+  my( $self, $outref ) = @_;
   $$outref =~ s/($url_re)\[\[BR\]\]/$1 [[BR]]/go;
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+HTML::WikiConverter::MoinMoin - HTML-to-wiki conversion rules for MoinMoin
+
+=head1 SYNOPSIS
+
+  use HTML::WikiConverter;
+  my $wc = new HTML::WikiConverter( dialect => 'MoinMoin' );
+  print $wc->html2wiki( $html );
+
+=head1 DESCRIPTION
+
+This module contains rules for converting HTML into MoinMoin
+markup. See L<HTML::WikiConverter> for additional usage details.
+
+=head1 AUTHOR
+
+David J. Iberri <diberri@yahoo.com>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2005 David J. Iberri
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
+
+=cut

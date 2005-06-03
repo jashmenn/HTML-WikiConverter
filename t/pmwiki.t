@@ -1,23 +1,7 @@
-use Test::More;
-
 local $/;
-my @tests = split /\+\+\+\+\n/, <DATA>;
-
-plan tests => scalar @tests;
-
-use HTML::WikiConverter;
-my $wc = new HTML::WikiConverter(
-  dialect => 'PmWiki',
-  base_uri => 'http://www.test.com',
-  wiki_uri => 'http://www.test.com/pmwiki/'
-);
-
-foreach my $test ( @tests ) {
-  $test =~ s/^(.*?)\n//; my $name = $1;
-  my( $html, $wiki ) = split /\+\+/, $test;
-  for( $html, $wiki ) { s/^\n+//; s/\n+$// }
-  is( $wc->html2wiki($html), $wiki, $name );
-}
+require 't/runtests.pl';
+runtests( data => <DATA>, dialect => 'PmWiki' );
+close DATA;
 
 __DATA__
 bold

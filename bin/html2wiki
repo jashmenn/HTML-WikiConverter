@@ -29,6 +29,7 @@ my $wc = new HTML::WikiConverter(
 
 local $/;
 my $html = <>;
+
 print $wc->html2wiki($html), "\n";
 
 sub usage { return <<EOF;

@@ -1,4 +1,5 @@
 package HTML::WikiConverter::PmWiki;
+use base 'HTML::WikiConverter';
 use warnings;
 use strict;
 
@@ -7,22 +8,22 @@ sub rules {
     hr => { replace => "\n----\n" },
     br => { replace => " \\\\\n" },
 
-    h1 => { start => '! ',      block => 1, trim => 1, line_format => 'single' },
-    h2 => { start => '!! ',     block => 1, trim => 1, line_format => 'single' },
-    h3 => { start => '!!! ',    block => 1, trim => 1, line_format => 'single' },
-    h4 => { start => '!!!! ',   block => 1, trim => 1, line_format => 'single' },
-    h5 => { start => '!!!!! ',  block => 1, trim => 1, line_format => 'single' },
-    h6 => { start => '!!!!!! ', block => 1, trim => 1, line_format => 'single' },
+    h1 => { start => '! ',      block => 1, trim => 'both', line_format => 'single' },
+    h2 => { start => '!! ',     block => 1, trim => 'both', line_format => 'single' },
+    h3 => { start => '!!! ',    block => 1, trim => 'both', line_format => 'single' },
+    h4 => { start => '!!!! ',   block => 1, trim => 'both', line_format => 'single' },
+    h5 => { start => '!!!!! ',  block => 1, trim => 'both', line_format => 'single' },
+    h6 => { start => '!!!!!! ', block => 1, trim => 'both', line_format => 'single' },
 
-    blockquote => { start => \&_blockquote_start, trim => 1, block => 1, line_format => 'multi' },
+    blockquote => { start => \&_blockquote_start, trim => 'both', block => 1, line_format => 'multi' },
     pre        => { line_prefix => ' ', block => 1 },
-    p          => { block => 1, trim => 1, line_format => 'multi' },
+    p          => { block => 1, trim => 'both', line_format => 'multi' },
 
     b      => { start => "'''", end => "'''", line_format => 'single' },
     strong => { alias => 'b' },
     i      => { start => "''", end => "''", line_format => 'single' },
     em     => { alias => 'i' },
-    tt     => { start => '@@', end => '@@', trim => 1, line_format => 'single' },
+    tt     => { start => '@@', end => '@@', trim => 'both', line_format => 'single' },
     code   => { alias => 'tt' },
 
     big   => { start => '+',  end => '+',  line_format => 'single' },
@@ -34,10 +35,10 @@ sub rules {
 
     ul => { line_format => 'multi', block => 1 },
     ol => { alias => 'ul' },
-    li => { start => \&_li_start, trim_leading => 1 },
+    li => { start => \&_li_start, trim => 'leading' },
 
     dl => { alias => 'ul' },
-    dt => { start => \&_li_start, line_format => 'single', trim => 1 },
+    dt => { start => \&_li_start, line_format => 'single', trim => 'both' },
     dd => { start => ': ' },
 
     a   => { replace => \&_link },
@@ -45,7 +46,7 @@ sub rules {
 
     table => { start => \&_table_start, block => 1 },
     tr    => { start => "\n||", line_format => 'single' },
-    td    => { start => \&_td_start, end => \&_td_end, trim => 1 },
+    td    => { start => \&_td_start, end => \&_td_end, trim => 'both' },
     th    => { alias => 'td' }
   );
 
@@ -53,13 +54,13 @@ sub rules {
 }
 
 sub _table_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my @attrs = qw/ border cellpadding cellspacing width bgcolor align /;
-  return '|| '.$wc->get_attr_str( $node, @attrs );
+  return '|| '.$self->get_attr_str( $node, @attrs );
 }
 
 sub _td_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $prefix = $node->tag eq 'th' ? '!' : '';
 
   my $align = $node->attr('align') || 'left';
@@ -69,7 +70,7 @@ sub _td_start {
 }
 
 sub _td_end {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $colspan = $node->attr('colspan') || 1;
   my $suffix = ( '||' ) x $colspan;
 
@@ -80,7 +81,7 @@ sub _td_end {
 }
 
 sub _blockquote_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my @parent_bqs = $node->look_up( _tag => 'blockquote' );
   my $depth = @parent_bqs;
   
@@ -89,7 +90,7 @@ sub _blockquote_start {
 }
 
 sub _li_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my @parent_lists = $node->look_up( _tag => qr/ul|ol|dl/ );
   my $depth = @parent_lists;
 
@@ -103,37 +104,53 @@ sub _li_start {
 }
 
 sub _link {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->get_elem_contents($node) || '';
+  my $text = $self->get_elem_contents($node) || '';
   return "[[$url | $text]]";
 }
 
 sub _image {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   return $node->attr('src') || '';
 }
 
 sub preprocess_node {
-  my( $pkg, $wc, $node ) = @_;
-  my $tag = $node->tag || '';
-  $pkg->_strip_aname($wc, $node) if $tag eq 'a';
-  $pkg->_caption2para($wc, $node) if $tag eq 'caption';
-}
-
-sub _strip_aname {
-  my( $pkg, $wc, $node ) = @_;
-  return unless $node->attr('name') and $node->parent;
-  return if $node->attr('href');
-  $node->replace_with_content->delete();
-}
-
-sub _caption2para {
-  my( $pkg, $wc, $caption ) = @_;
-  my $table = $caption->parent;
-  $caption->detach();
-  $table->preinsert($caption);
-  $caption->tag('p');
+  my( $self, $node ) = @_;
+  $self->strip_aname($node) if $node->tag eq 'a';
+  $self->caption2para($node) if $node->tag eq 'caption';
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+HTML::WikiConverter::PmWiki - HTML-to-wiki conversion rules for PmWiki
+
+=head1 SYNOPSIS
+
+  use HTML::WikiConverter;
+  my $wc = new HTML::WikiConverter( dialect => 'PmWiki' );
+  print $wc->html2wiki( $html );
+
+=head1 DESCRIPTION
+
+This module contains rules for converting HTML into PmWiki markup. See
+L<HTML::WikiConverter> for additional usage details.
+
+=head1 AUTHOR
+
+David J. Iberri <diberri@yahoo.com>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2005 David J. Iberri
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
+
+=cut

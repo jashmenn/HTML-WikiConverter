@@ -1,4 +1,5 @@
 package HTML::WikiConverter::MediaWiki;
+use base 'HTML::WikiConverter';
 use warnings;
 use strict;
 
@@ -14,22 +15,25 @@ my @tablecell_attrs = qw(
 );
 
 sub rules {
+  my $self = shift;
+
   # HTML attributes common to all preserved tags
   my %rules = (
     hr => { replace => "\n----\n" },
     br => { preserve => 1, empty => 1, attributes => [ qw/id class title style clear/ ] },
 
-    p      => { block => 1, trim => 1, line_format => 'multi' },
-    i      => { start => "''", end => "''", line_format => 'single' },
-    em     => { alias => 'i' },
-    b      => { start => "'''", end => "'''", line_format => 'single' },
-    strong => { alias => 'b' },
+    p      => { block => 1, trim => 'both', line_format => 'multi' },
+    em     => { start => "''", end => "''", line_format => 'single' },
+    i      => { alias => 'em' },
+    strong => { start => "'''", end => "'''", line_format => 'single' },
+    b      => { alias => 'strong' },
+
     pre    => { line_prefix => ' ', block => 1 },
 
     table   => { start => \&_table_start, end => "|}", block => 1, line_format => 'blocks' },
     tr      => { start => \&_tr_start },
-    td      => { start => \&_td_start, end => "\n", trim => 1, line_format => 'blocks' },
-    th      => { start => \&_td_start, end => "\n", trim => 1, line_format => 'single' },
+    td      => { start => \&_td_start, end => "\n", trim => 'both', line_format => 'blocks' },
+    th      => { start => \&_td_start, end => "\n", trim => 'both', line_format => 'single' },
     caption => { start => \&_caption_start, end => "\n", line_format => 'single' },
 
     img => { replace => \&_image },
@@ -43,7 +47,7 @@ sub rules {
     # doing so would incorrectly collapse nested list items into a
     # single line
 
-    li => { start => \&_li_start, trim_leading => 1 },
+    li => { start => \&_li_start, trim => 'leading' },
     dt => { alias => 'li' },
     dd => { alias => 'li' },
 
@@ -122,6 +126,10 @@ sub rules {
     rp => { preserve => 1, attributes => \@common_attrs },
   );
 
+  # Preserve <i> and <b> instead of converting them to '' and ''', respectively
+  $rules{i} = { preserve => 1, attributes => \@common_attrs } if $self->preserve_italic;
+  $rules{b} = { preserve => 1, attributes => \@common_attrs } if $self->preserve_bold;
+
   # Disallowed HTML tags
   my @stripped_tags = qw/ head title script style meta link object /;
   $rules{$_} = { replace => '' } foreach @stripped_tags;
@@ -135,7 +143,7 @@ sub rules {
       start => $affix.' ',
       end => ' '.$affix,
       block => 1,
-      trim => 1,
+      trim => 'both',
       line_format => 'single'
     };
   }
@@ -143,10 +151,16 @@ sub rules {
   return \%rules;
 }
 
+sub attributes { (
+  shift->SUPER::attributes,
+  preserve_bold => 0,
+  preserve_italic => 0
+) }
+
 # Calculates the prefix that will be placed before each list item.
 # List item include ordered, unordered, and definition list items.
 sub _li_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my @parent_lists = $node->look_up( _tag => qr/ul|ol|dl/ );
 
   my $prefix = '';
@@ -163,12 +177,12 @@ sub _li_start {
 }
 
 sub _link {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $url = $node->attr('href') || '';
-  my $text = $wc->get_elem_contents($node) || '';
+  my $text = $self->get_elem_contents($node) || '';
 
   # Handle internal links
-  if( my $title = $wc->get_wiki_page( $url ) ) {
+  if( my $title = $self->get_wiki_page( $url ) ) {
     $title =~ s/_/ /g;
     return "[[$title]]" if $text eq $title;        # no difference between link text and page title
     return "[[$text]]" if $text eq lcfirst $title; # differ by 1st char. capitalization
@@ -181,13 +195,13 @@ sub _link {
 }
 
 sub _image {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   return '' unless $node->attr('src');
   return '[[Image:'.basename( URI->new($node->attr('src'))->path ).']]';
 }
 
 sub _table_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $prefix = '{|';
 
   my @table_attrs = (
@@ -196,18 +210,18 @@ sub _table_start {
         cellpadding align bgcolor frame rules /
   );
 
-  my $attrs = $wc->get_attr_str( $node, @table_attrs );
+  my $attrs = $self->get_attr_str( $node, @table_attrs );
   $prefix .= ' '.$attrs if $attrs;
 
   return $prefix."\n";
 }
 
 sub _tr_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $prefix = '|-';
   
   my @tr_attrs = ( @common_attrs, 'bgcolor', @tablealign_attrs );
-  my $attrs = $wc->get_attr_str( $node, @tr_attrs );
+  my $attrs = $self->get_attr_str( $node, @tr_attrs );
   $prefix .= ' '.$attrs if $attrs;
 
   return '' unless $node->left or $attrs;
@@ -221,11 +235,11 @@ my @td_phrasals = qw/ i em b strong u tt code span font sup sub br hr ~text s st
 my %td_phrasals = map { $_ => 1 } @td_phrasals;
 
 sub _td_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $prefix = $node->tag eq 'th' ? '!' : '|';
 
   my @td_attrs = ( @common_attrs, @tablecell_attrs, @tablealign_attrs, 'bgcolor' );
-  my $attrs = $wc->get_attr_str( $node, @td_attrs );
+  my $attrs = $self->get_attr_str( $node, @td_attrs );
   $prefix .= ' '.$attrs.' |' if $attrs;
 
   # If there are any non-text elements inside the cell, then the
@@ -237,22 +251,22 @@ sub _td_start {
 }
 
 sub _caption_start {
-  my( $wc, $node, $rules ) = @_;
+  my( $self, $node, $rules ) = @_;
   my $prefix = '|+ ';
 
   my @caption_attrs = ( @common_attrs, 'align' );
-  my $attrs = $wc->get_attr_str( $node, @caption_attrs );
+  my $attrs = $self->get_attr_str( $node, @caption_attrs );
   $prefix .= $attrs.' |' if $attrs;
 
   return $prefix;
 }
 
 sub preprocess_node {
-  my( $pkg, $wc, $node ) = @_;
+  my( $self, $node ) = @_;
   my $tag = $node->tag || '';
-  $pkg->_strip_extra($wc, $node);
-  $pkg->_strip_aname($wc, $node) if $tag eq 'a';
-  $pkg->_nowiki_text($wc, $node) if $tag eq '~text';
+  $self->strip_aname($node) if $tag eq 'a';
+  $self->_strip_extra($node);
+  $self->_nowiki_text($node) if $tag eq '~text';
 }
 
 my $URL_PROTOCOLS = 'http|https|ftp|irc|gopher|news|mailto';
@@ -271,7 +285,7 @@ my @wikitext_patterns = (
 );
 
 sub _nowiki_text {
-  my( $pkg, $wc, $node ) = @_;
+  my( $self, $node ) = @_;
   my $text = $node->attr('text') || '';
 
   my $found_wikitext = 0;
@@ -288,13 +302,6 @@ sub _nowiki_text {
   $node->attr( text => $text );
 }
 
-sub _strip_aname {
-  my( $pkg, $wc, $node ) = @_;
-  return unless $node->attr('name') and $node->parent;
-  return if $node->attr('href');
-  $node->replace_with_content->delete();
-}
-
 my %extra = (
  id => qr/catlinks/,
  class => qr/urlexpansion|printfooter|editsection/
@@ -302,9 +309,8 @@ my %extra = (
 
 # Delete <span class="urlexpansion">...</span> et al
 sub _strip_extra {
-  my( $pkg, $wc, $node ) = @_;
+  my( $self, $node ) = @_;
   my $tag = $node->tag || '';
-  return unless $tag =~ /div|span/;
 
   foreach my $att_name ( keys %extra ) {
     my $att_value = $node->attr($att_name) || '';
@@ -317,3 +323,98 @@ sub _strip_extra {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+HTML::WikiConverter::MediaWiki - HTML-to-wiki conversion rules for MediaWiki
+
+=head1 SYNOPSIS
+
+  use HTML::WikiConverter;
+  my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
+  print $wc->html2wiki( $html );
+
+=head1 DESCRIPTION
+
+This module contains rules for converting HTML into MediaWiki
+markup. See L<HTML::WikiConverter> for additional usage details.
+
+=head1 ATTRIBUTES
+
+In addition to the regular set of attributes recognized by the
+L<HTML::WikiConverter> constructor, this dialect also accepts the
+following attributes:
+
+=over
+
+=item preserve_bold
+
+Boolean indicating whether bold HTML elements should be preserved as
+HTML in the wiki output rather than being converted into MediaWiki
+markup.
+
+By default, E<lt>bE<gt> and E<lt>strongE<gt> elements are converted to
+wiki markup identically. But sometimes you may wish E<lt>bE<gt> tags
+in the HTML to be preserved in the resulting MediaWiki markup. This
+attribute allows this.
+
+For example, if C<preserve_bold> is enabled, HTML like
+
+  <ul>
+    <li> <b>Bold</b>
+    <li> <strong>Strong</strong>
+  </ul>
+
+will be converted to
+
+  * <b>Bold</b>
+  * '''Strong'''
+
+When disabled (the default), the preceding HTML markup would be
+converted into
+
+  * '''Bold'''
+  * '''Strong'''
+
+=item preserve_italic
+
+Boolean indicating whether italic HTML elements should be preserved as
+HTML in the wiki output rather than being converted into MediaWiki
+markup.
+
+For example, if C<preserve_italic> is enabled, HTML like
+
+  <ul>
+    <li> <i>Italic</i>
+    <li> <em>Emphasized</em>
+  </ul>
+
+will be converted to
+
+  * <i>Italic</i>
+  * ''Emphasized''
+
+When disabled (the default), the preceding HTML markup would be
+converted into
+
+  * ''Italic''
+  * ''Emphasized''
+
+=back
+
+=head1 AUTHOR
+
+David J. Iberri <diberri@yahoo.com>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2005 David J. Iberri
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
+
+=cut

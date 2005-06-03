@@ -1,10 +1,11 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         HTML-WikiConverter
-version:      0.23
+version:      0.30
 version_from: WikiConverter.pm
 installdirs:  site
 requires:
+    HTML::Entities:                1.27
     HTML::Tree:                    3.18
     URI:                           1.35
 
