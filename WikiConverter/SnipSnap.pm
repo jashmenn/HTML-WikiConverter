@@ -50,12 +50,10 @@ sub _link {
   my $text = $self->get_elem_contents($node) || '';
 
   if( my $title = $self->get_wiki_page($url) ) {
-    # Internal links
     $text =~ s~\+~ ~g;
     return "[$text]" if lc $text eq lc $title;
     return "[$text|$title]";
   } else {
-    # External links
     return $url if $url eq $text;
     return "{link:$text|$url}";
   }
@@ -93,7 +91,7 @@ markup. See L<HTML::WikiConverter> for additional usage details.
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

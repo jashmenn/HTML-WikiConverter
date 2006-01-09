@@ -11,13 +11,15 @@ my @block_attrs = ( @common_attrs, 'align' );
 my @tablealign_attrs = qw/ align char charoff valign /;
 my @tablecell_attrs = qw(
   abbr axis headers scope rowspan
-  colspan nowrap width height
+  colspan nowrap width height bgcolor
 );
+
+# Fix for bug 14527
+my $pre_prefix = '[jsmckaoqkjgbhazkfpwijhkixh]';
 
 sub rules {
   my $self = shift;
 
-  # HTML attributes common to all preserved tags
   my %rules = (
     hr => { replace => "\n----\n" },
     br => { preserve => 1, empty => 1, attributes => [ qw/id class title style clear/ ] },
@@ -28,7 +30,7 @@ sub rules {
     strong => { start => "'''", end => "'''", line_format => 'single' },
     b      => { alias => 'strong' },
 
-    pre    => { line_prefix => ' ', block => 1 },
+    pre    => { line_prefix => $pre_prefix, block => 1 },
 
     table   => { start => \&_table_start, end => "|}", block => 1, line_format => 'blocks' },
     tr      => { start => \&_tr_start },
@@ -43,88 +45,23 @@ sub rules {
     ol => { alias => 'ul' },
     dl => { alias => 'ul' },
 
-    # Note that we're not using line_format=>'single' for list items;
-    # doing so would incorrectly collapse nested list items into a
-    # single line
-
     li => { start => \&_li_start, trim => 'leading' },
     dt => { alias => 'li' },
     dd => { alias => 'li' },
 
-    # Preserved elements, from MediaWiki's Sanitizer.php; see
+    # Preserved elements, from MediaWiki's Sanitizer.php
     # http://tinyurl.com/dzj6o
 
-    # 7.5.4
-    div    => { preserve => 1, attributes => \@block_attrs },
-    center => { preserve => 1, attributes => \@common_attrs },
-    span   => { preserve => 1, attributes => \@block_attrs },
-    
-    # 7.5.5
-    # h1-6 -> wikitext
-
-    # 7.5.6
-    # address
-    
-    # 8.2.4
-    # bdo
-    
-    # 9.2.1
-    # em -> wikitext
-    # strong -> wikitext
-    cite => { preserve => 1, attributes => \@common_attrs },
-    # dfn
-    code => { preserve => 1, attributes => \@common_attrs },
-    # samp
-    # kbd
-    var  => { preserve => 1, attributes => \@common_attrs },
-    # abbr
-    # acronym
-
-    # 9.2.2
+    div        => { preserve => 1, attributes => \@block_attrs },
+    span       => { alias => 'div' },
     blockquote => { preserve => 1, attributes => [ @common_attrs, qw/ cite / ] },
-    # q
-    
-    # 9.2.3
-    sup => { preserve => 1, attributes => \@common_attrs },
-    sub => { preserve => 1, attributes => \@common_attrs },
-
-    # 9.3.1
-    # p -> wikitext
-
-    # 9.4
-    del => { preserve => 1, attributes => [ @common_attrs, qw/ cite datetime / ] },
-    ins => { alias => 'del' },
-
-    # 10.2
-    # ul, ol, li -> wikitext
-
-    # 10.3
-    # dl, dd, dt -> wikitext
-
-    # 15.2.1
-    tt     => { preserve => 1, attributes => \@common_attrs },
-    # b, i -> wikitext
-    big    => { preserve => 1, attributes => \@common_attrs },
-    small  => { preserve => 1, attributes => \@common_attrs },
-    strike => { preserve => 1, attributes => \@common_attrs },
-    s      => { preserve => 1, attributes => \@common_attrs },
-    u      => { preserve => 1, attributes => \@common_attrs },
-    
-    # 15.2.2
-    font => { preserve => 1, attributes => [ @common_attrs, qw/ size color face / ] },
-    # basefont
-
-    # 15.3
-    # hr -> wikitext
-
-    # XHTML Ruby annotation
-    ruby => { preserve => 1, attributes => \@common_attrs },
-    # rbc
-    # rtc
-    rb => { preserve => 1, attributes => \@common_attrs },
-    rt => { preserve => 1, attributes => \@common_attrs },
-    rp => { preserve => 1, attributes => \@common_attrs },
+    del        => { preserve => 1, attributes => [ @common_attrs, qw/ cite datetime / ] },
+    ins        => { alias => 'del' },
+    font       => { preserve => 1, attributes => [ @common_attrs, qw/ size color face / ] },
   );
+
+  $rules{$_} = { preserve => 1, attributes => \@common_attrs } for
+    qw/ center cite code var sup sub tt big small strike s u ruby rb rt rp /;
 
   # Preserve <i> and <b> instead of converting them to '' and ''', respectively
   $rules{i} = { preserve => 1, attributes => \@common_attrs } if $self->preserve_italic;
@@ -135,17 +72,9 @@ sub rules {
   $rules{$_} = { replace => '' } foreach @stripped_tags;
 
   # Headings (h1-h6)
-  my @headings = ( 1..6 );
-  foreach my $level ( @headings ) {
-    my $tag = "h$level";
+  foreach my $level ( 1..6 ) {
     my $affix = ( '=' ) x $level;
-    $rules{$tag} = {
-      start => $affix.' ',
-      end => ' '.$affix,
-      block => 1,
-      trim => 'both',
-      line_format => 'single'
-    };
+    $rules{"h$level"} = { start => $affix.' ', end => ' '.$affix, block => 1, trim => 'both', line_format => 'single' };
   }
 
   return \%rules;
@@ -157,8 +86,13 @@ sub attributes { (
   preserve_italic => 0
 ) }
 
+sub postprocess_output {
+  my( $self, $outref ) = @_;
+  $$outref =~ s/\Q$pre_prefix\E/ /g;
+}
+
 # Calculates the prefix that will be placed before each list item.
-# List item include ordered, unordered, and definition list items.
+# Handles ordered, unordered, and definition list items.
 sub _li_start {
   my( $self, $node, $rules ) = @_;
   my @parent_lists = $node->look_up( _tag => qr/ul|ol|dl/ );
@@ -238,7 +172,7 @@ sub _td_start {
   my( $self, $node, $rules ) = @_;
   my $prefix = $node->tag eq 'th' ? '!' : '|';
 
-  my @td_attrs = ( @common_attrs, @tablecell_attrs, @tablealign_attrs, 'bgcolor' );
+  my @td_attrs = ( @common_attrs, @tablecell_attrs, @tablealign_attrs );
   my $attrs = $self->get_attr_str( $node, @td_attrs );
   $prefix .= ' '.$attrs.' |' if $attrs;
 
@@ -277,7 +211,7 @@ my $EXT_LINK_TEXT_CLASS = '[^\]\\x00-\\x1F\\x7F]';
 # in <nowiki> and </nowiki>
 my @wikitext_patterns = (
   qr/''/,
-  qr/^(?:\*|\#|\;|\:)/m,
+  qr/^(?:\*|\#|\;|\:|\=|\!|\|)/m,
   qr/^----/m,
   qr/^\{\|/m,
   qr/\[\[/m,
@@ -406,7 +340,7 @@ converted into
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

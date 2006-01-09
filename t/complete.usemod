@@ -2,17 +2,17 @@
 
 HTML::WikiConverter is a Perl module for converting HTML to wiki markup for a variety of different wiki engines. Currently, it supports '''eleven''' dialects:
 
-* DocuWiki 
-* Kwiki 
-* MediaWiki 
-* MoinMoin 
-* Oddmuse 
-* PhpWiki 
-* PmWiki 
-* SnipSnap 
-* TikiWiki 
-* UseMod 
-* WakkaWiki 
+* DokuWiki
+* Kwiki
+* MediaWiki
+* MoinMoin
+* Oddmuse
+* PhpWiki
+* PmWiki
+* SnipSnap
+* TikiWiki
+* UseMod
+* WakkaWiki
 
 I'd ''really'' like to add support for TWiki, but the way it handles '''''bold italics''''' (and possibly other nested elements) is very disappointing.
 
@@ -55,15 +55,15 @@ http://www.google.com/images/logo.gif
 
 Wikis also support lists, even extensively nested ones. Some rely on leading characters to determine nest levels, while others rely on spaces or (egad!) tabs.
 
-* 1 
+* 1
 ** 1a
-** 1b 
-* 2 
-** 2a 
+** 1b
+* 2
+** 2a
 ### fee
 ### fie
-### foe 
-**** fum?  
+### foe
+**** fum?
 
 Some wikis support definition lists, though they're often used inappropriately (as in MediaWiki, which uses them for indentation).
 

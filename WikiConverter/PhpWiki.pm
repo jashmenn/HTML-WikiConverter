@@ -39,11 +39,7 @@ sub rules {
     pre => { preserve => 1 },
   );
 
-  # HTML tags allowed in wiki markup
-  foreach my $tag ( qw/ big small tt abbr acronym cite code dfn kbd samp var sup sub / ) {
-    $rules{$tag} = { preserve => 1 }
-  }
-
+  $rules{$_} = { preserve => 1 } for qw/ big small tt abbr acronym cite code dfn kbd samp var sup sub /;
   return \%rules;
 }
 
@@ -74,7 +70,7 @@ sub _link {
   return "[$text|$url]";
 }
 
-# Not quite right yet (e.g. doesn't handle rowspan)
+# XXX doesn't handle rowspan
 sub _td_start {
   my( $self, $node, $rules ) = @_;
   my @left = $node->left;
@@ -122,7 +118,7 @@ markup. See L<HTML::WikiConverter> for additional usage details.
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

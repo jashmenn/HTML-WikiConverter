@@ -494,3 +494,46 @@ escape bracketed urls
 <html><p>This is a text node with what looks like an ext. link [http://example.org].</p></html>
 ++
 This is a text node with what looks like an ext. link <nowiki>[http://example.org]</nowiki>.
+++++
+line with vertical bar
+<html><p>| a line with a vertical bar</p></html>
+++
+<nowiki>| a line with a vertical bar</nowiki>
+++++
+line that starts with a bang
+<html><p>! a line that starts with a bang</p></html>
+++
+<nowiki>! a line that starts with a bang</nowiki>
+++++
+line that looks like a section
+<html><p>= a line that looks like a section</p></html>
+++
+<nowiki>= a line that looks like a section</nowiki>
+++++
+pre-many
+<html><pre>preformatted text
+
+with spaces
+
+should produce only one
+
+pre-block</pre></html>
+++
+ preformatted text
+ 
+ with spaces
+ 
+ should produce only one
+ 
+ pre-block
+++++
+pre following pre
+<html><pre>preformatted text</pre>
+<pre>more preformatted text</pre>
+<pre>once again</pre></html>
+++
+ preformatted text
+
+ more preformatted text
+
+ once again

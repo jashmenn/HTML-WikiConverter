@@ -48,13 +48,7 @@ sub rules {
     my $tag = "h$level";
     my $affix = ( '=' ) x ($level+1);
     $affix = '======' if $level == 6;
-    $rules{$tag} = {
-      start => $affix.' ',
-      end => ' '.$affix,
-      block => 1,
-      trim => 'both',
-      line_format => 'single'
-    };
+    $rules{$tag} = { start => $affix.' ', end => ' '.$affix, block => 1, trim => 'both', line_format => 'single' };
   }
 
   return \%rules;
@@ -105,8 +99,6 @@ sub _attrs2style {
   return $attstr || '';
 }
 
-# Calculates the prefix that will be placed before each list item.
-# List item include ordered, unordered, and definition list items.
 sub _li_start {
   my( $self, $node, $rules ) = @_;
   my $bullet = '';
@@ -168,7 +160,7 @@ markup. See L<HTML::WikiConverter> for additional usage details.
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

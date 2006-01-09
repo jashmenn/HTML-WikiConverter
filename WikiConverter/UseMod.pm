@@ -28,18 +28,9 @@ sub rules {
     dd => { alias => 'li' },
   );
 
-  # Headings (h1-h6)
-  my @headings = ( 1..6 );
-  foreach my $level ( @headings ) {
-    my $tag = "h$level";
+  foreach my $level ( 1..6 ) {
     my $affix = ( '=' ) x $level;
-    $rules{$tag} = {
-      start => $affix.' ',
-      end => ' '.$affix,
-      block => 1,
-      trim => 'both',
-      line_format => 'single'
-    };
+    $rules{"h$level"} = { start => $affix.' ', end => ' '.$affix, block => 1, trim => 'both', line_format => 'single' };
   }
 
   return \%rules;
@@ -103,7 +94,7 @@ L<HTML::WikiConverter> for additional usage details.
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

@@ -102,7 +102,7 @@ lists
 nested lists
 <html><ul><li>1<ul><li>1a</li><li>1b</li></ul></li><li>2</li></ul>
 ++
-  * 1  
+  * 1
     * 1a
     * 1b
   * 2
@@ -110,7 +110,7 @@ nested lists
 nested lists (different types)
 <html><ul><li>1<ul><li>a<ol><li>i</li></ol></li><li>b</li></ul></li><li>2</li></ul></html>
 ++
-  * 1  
+  * 1
     * a
       1. i
     * b

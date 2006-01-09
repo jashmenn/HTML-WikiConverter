@@ -176,7 +176,7 @@ indent
 nested indent
 <html><blockquote>indented text <blockquote>double-indented</blockquote></blockquote></html>
 ++
-  indented text 
+  indented text
     double-indented
 ++++
 h1

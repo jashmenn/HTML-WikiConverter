@@ -3,10 +3,11 @@ use warnings;
 use strict;
 
 use URI;
+use Encode;
 use HTML::Entities;
 use HTML::TreeBuilder;
 use vars '$VERSION';
-$VERSION = '0.30';
+$VERSION = '0.40';
 our $AUTOLOAD;
 
 sub new {
@@ -38,44 +39,40 @@ sub new {
   return $self;
 }
 
-# List of allowed attributes with their defaults
 sub attributes { (
-  dialect        => undef, # Dialect to use (required unless instantiated from an H::WC subclass)
-  base_uri       => undef, # Base URI for relative links
-  wiki_uri       => undef, # Wiki URI for wiki links
-  wrap_in_html   => 0,     # Wrap HTML in <html> and </html>
-  strip_comments => 1,     # Strip HTML comments
-  strip_head     => 1,     # Strip head element
-  strip_scripts  => 1,     # Strip script elements
+  dialect        => undef,  # Dialect to use (required unless instantiated from an H::WC subclass)
+  base_uri       => undef,  # Base URI for relative links
+  wiki_uri       => undef,  # Wiki URI for wiki links
+  wrap_in_html   => 1,      # Wrap HTML in <html> and </html>
+  strip_comments => 1,      # Strip HTML comments
+  strip_head     => 1,      # Strip head element
+  strip_scripts  => 1,      # Strip script elements
+  encoding       => 'utf8', # Input encoding
 ) }
 
-# Private attributes
-sub __root { shift->_param( __root => @_ ) }
-sub __rules { shift->_param( __rules => @_ ) }
+sub __root { shift->__param( __root => @_ ) }
+sub __rules { shift->__param( __rules => @_ ) }
+sub parsed_html { shift->__param( __parsed_html => @_ ) }
 
-# Public accessors
-sub parsed_html { shift->_param( __parsed_html => @_ ) }
-
-# Utility method to make it easy to create accessors
-sub _param {
+sub __param {
   my( $self, $param, $value ) = @_;
   $self->{$param} = $value if defined $value;
   return $self->{$param} || '';
 }
 
-# For attribute accessors and mutators
+# Attribute accessors and mutators
 sub AUTOLOAD {
   my $self = shift;
   my %attrs = $self->attributes;
   ( my $attr = $AUTOLOAD ) =~ s/.*://;
-  return $self->_param( $attr => @_ ) if exists $attrs{$attr};
+  return $self->__param( $attr => @_ ) if exists $attrs{$attr};
   die "Can't locate method '$attr' in package ".ref($self);
 }
 
 # So AUTOLOAD doesn't intercept calls to this method
 sub DESTROY { }
 
-# Should probably be using File::Slurp...
+# FIXME: Should probably be using File::Slurp...
 sub __slurp {
   my( $self, $file ) = @_;
   local *F; local $/;
@@ -95,18 +92,17 @@ sub html2wiki {
   my $file = $args{file} || '';
   my $slurp = $args{slurp} || 0;
 
-  # Wrap in <html> tags; this step must occur before slurping, as we
-  # only apply 'wrap_in_html' to HTML strings, not files
   $html = "<html>$html</html>" if $self->wrap_in_html;
 
-  # Slurp file to ensure that parsed HTML is exactly what was in the
-  # source file, including whitespace, etc. This avoids HTML::Parser's
-  # parse_file method, which reads and parses files incrementally,
-  # which often does not result in the same exact parsing of
-  # whitespace, etc.
+  # Slurp file so parsed HTML is exactly what was in the source file,
+  # including whitespace, etc. This avoids HTML::Parser's parse_file
+  # method, which reads and parses files incrementally, often not
+  # resulting in the same *exact* parse tree (esp. whitespace).
   $html = $self->__slurp($file) if $file && $slurp;
 
-  # Setup the tree builder
+  # Decode into Perl's internal form
+  $html = decode( $self->encoding, $html );
+
   my $tree = new HTML::TreeBuilder();
   $tree->store_comments(1);
   $tree->p_strict(1);
@@ -114,30 +110,26 @@ sub html2wiki {
   $tree->ignore_unknown(0); # <ruby> et al
 
   # Parse the HTML string or file
-  if( $html ) {
-    $tree->parse($html);
-  } else { # file
-    $tree->parse_file($file);
-  }
+  if( $html ) { $tree->parse($html); }
+  else { $tree->parse_file($file); }
 
-  # Preprocess then save the HTML tree and parsed HTML
-  $self->__preprocess_tree($tree);
+  # Preprocess, save tree and parsed HTML
   $self->__root( $tree );
+  $self->__preprocess_tree();
   $self->parsed_html( $tree->as_HTML(undef, '  ') );
 
-  # Convert HTML->wiki and post-process
+  # Convert and preprocess
   my $output = $self->__wikify($tree);
   $self->__postprocess_output(\$output);
 
-  # Avoid memory leaks
+  # Avoid leaks
   $tree->delete();
+
+  # Return to original encoding
+  $output = encode( $self->encoding, $output );
 
   return $output;
 }
-
-#
-# Private methods
-#
 
 sub __wikify {
   my( $self, $node ) = @_;
@@ -150,22 +142,17 @@ sub __wikify {
   } elsif( $node->tag eq '~comment' ) {
     return '<!--' . $node->attr('text') . '-->';
   } else {
-    # Get conversion rules
     my $rules = $self->__rules->{$node->tag};
     $rules = $self->__rules->{$rules->{alias}} if $rules->{alias};
 
-    # The '__start' and '__end' rules are private; they get applied
-    # before the public 'start' and 'end' rules. This allows dialects
-    # to combine the 'start' and 'end' rules with the 'preserve' rule.
+    return $self->__subst($rules->{replace}, $node, $rules) if exists $rules->{replace};
+
+    # Set private preserve rules
     if( $rules->{preserve} ) {
       $rules->{__start} = \&__preserve_start,
       $rules->{__end} = $rules->{empty} ? undef : '</'.$node->tag.'>';
     }
 
-    # Apply replacement
-    return $self->__subst($rules->{replace}, $node, $rules) if exists $rules->{replace};
-
-    # Get element's content
     my $output = $self->get_elem_contents($node);
 
     # Unspecified tags have their whitespace preserved (this allows
@@ -175,26 +162,20 @@ sub __wikify {
     $output =~ s/^\s+// if $trim eq 'both' or $trim eq 'leading';
     $output =~ s/\s+$// if $trim eq 'both' or $trim eq 'trailing';
 
-    # Handle newlines
     my $lf = $rules->{line_format} || 'none';
+    $output =~ s/^\s*\n/\n/gm  if $lf ne 'none';
     if( $lf eq 'blocks' ) {
-      # Three or more newlines are converted into \n\n
-      $output =~ s/^\s*\n/\n/gm;
       $output =~ s/\n{3,}/\n\n/g;
     } elsif( $lf eq 'multi' ) {
-      # Two or more newlines are converted into \n
-      $output =~ s/^\s*\n/\n/gm;
       $output =~ s/\n{2,}/\n/g;
     } elsif( $lf eq 'single' ) {
-      # Newlines are removed and replaced with single spaces
-      $output =~ s/^\s*\n/\n/gm;
       $output =~ s/\n+/ /g;
     } elsif( $lf eq 'none' ) {
-      # Don't do anything
+      # Do nothing
     }
 
-    # Apply substitutions
-    $output =~ s/^/$self->__subst($rules->{line_prefix}, $node, $rules)/mge if $rules->{line_prefix};
+    # Substitutions
+    $output =~ s/^/$self->__subst($rules->{line_prefix}, $node, $rules)/gem if $rules->{line_prefix};
     $output = $self->__subst($rules->{__start}, $node, $rules).$output if $rules->{__start};
     $output = $output.$self->__subst($rules->{__end}, $node, $rules) if $rules->{__end};
     $output = $self->__subst($rules->{start}, $node, $rules).$output if $rules->{start};
@@ -207,27 +188,11 @@ sub __wikify {
   }
 }
 
-# $subst is either a coderef or some other scalar: if it's a coderef,
-# we call the coderef with three params; otherwise, we just return the
-# scalar. Note that (unfortunately) this is not an object method call.
 sub __subst {
   my( $self, $subst, $node, $rules ) = @_;
-  return $subst->( $self, $node, $rules ) if ref $subst eq 'CODE';
-  return $subst;
+  return ref $subst eq 'CODE' ? $subst->( $self, $node, $rules ) : $subst;
 }
 
-#
-# Returns a start string form preserved HTML elements and their
-# attributes, if any. For example, if this was the HTML:
-#
-#   <span id='warning' class='alert' onclick="alert('Hey!')">Hey</span>
-#
-# And the rule for the 'span' element is
-#
-#   span => { preserve => 1, attributes => [ qw/ class / ] }
-#
-# Then this function will return '<span class="alert">'.
-#
 sub __preserve_start {
   my( $self, $node, $rules ) = @_;
 
@@ -240,48 +205,36 @@ sub __preserve_start {
   return '<'.$tag.$slash.'>';
 }
 
-# Maps tag name to the attribute that should contain an absolute URI
+# Maps tag name to its URI attribute
 my %rel2abs = ( a => 'href', img => 'src' );
 
-# Traverse the tree, making adjustments according to the parameters
-# passed during construction.
 sub __preprocess_tree {
-  my( $self, $root ) = @_;
+  my $self = shift;
 
-  $root->objectify_text();
+  $self->__root->objectify_text();
 
-  foreach my $node ( $root->descendents ) {
+  foreach my $node ( $self->__root->descendents ) {
     $node->tag('') unless $node->tag;
-
-    # Remove comments, scripts, and head nodes
     $self->__rm_node($node), next if $node->tag eq '~comment' and $self->strip_comments;
     $self->__rm_node($node), next if $node->tag eq 'script' and $self->strip_scripts;
     $self->__rm_node($node), next if $node->tag eq 'head' and $self->strip_head;
-
     $self->__rm_invalid_text($node);
     $self->__encode_entities($node) if $node->tag eq '~text';
     $self->__rel2abs($node) if $self->base_uri and $rel2abs{$node->tag};
-
-    # Dialect preprocessing
     $self->preprocess_node($node);
   }
 
-  # Must objectify text again in case preprocessing happened to add
-  # any new text content
-  $root->objectify_text();
+  # Reobjectify in case preprocessing added new text
+  $self->__root->objectify_text();
 }
 
-# Removes the given node
 sub __rm_node { pop->replace_with('')->delete() }
 
-# Encodes high-bit and control characters found in the node's text to
-# their equivalent HTML entities. Note that the quotes (specifically
-# double quotes) aren't encoded because of their expected ubiquity in
-# node text.
+# Encodes high-bit and control chars in node's text to HTML entities.
 sub __encode_entities {
   my( $self, $node ) = @_;
   my $text = $node->attr('text') || '';
-  encode_entities( $text, '^\n\r\t !\#\$%\'-;=?-~"' );
+  encode_entities( $text, '<>&' );
   $node->attr( text => $text );
 }
 
@@ -293,9 +246,7 @@ sub __rel2abs {
   $node->attr( $attr => URI->new($node->attr($attr))->abs($self->base_uri)->as_string );
 }
 
-# Removes text nodes directly inside container elements, since
-# container elements cannot contain text. This is intended to remove
-# excess whitespace in these elements.
+# Removes text nodes directly inside container elements.
 my %containers = map { $_ => 1 } qw/ table tbody tr ul ol dl menu /;
 
 sub __rm_invalid_text {
@@ -306,35 +257,35 @@ sub __rm_invalid_text {
   }
 }
 
-# Can be overridden in dialects
+sub strip_aname {
+  my( $self, $node ) = @_;
+  return if $node->attr('href');
+  $node->replace_with_content->delete();
+}
+
+sub caption2para {
+  my( $self, $node ) = @_;
+  my $table = $node->parent;
+  $node->detach();
+  $table->preinsert($node);
+  $node->tag('p');
+}
+
 sub preprocess_node { }
 
-# Post-process wiki markup, esp. newlines
 sub __postprocess_output {
   my( $self, $outref ) = @_;
-
-  # Clean up newlines
-  $$outref =~ s/\n[\s^\n]+\n/\n\n/g;
+  $$outref =~ s/\n[\s^\n]+\n/\n\n/g; # XXX this is causing bug 14527
   $$outref =~ s/\n{2,}/\n\n/g;
-
-  # Trim leading newlines and trailing whitespace; in supported wikis,
-  # leading spaces likely have meaning, so we can't muck with 'em.
-  # Leading and trailing newlines shouldn't be significant at all, so
-  # we can safely discard them.
   $$outref =~ s/^\n+//;
   $$outref =~ s/\s+$//;
-
+  $$outref =~ s/[ \t]+$//gm;
   $self->postprocess_output($outref);
 }
 
-# Can be overridden in dialects
 sub postprocess_output { }
 
-# Specifies what rule combinations are allowed. For example, 'replace'
-# cannot be used in combination with any other rule, so it's a
-# singleton; the 'attributes' rule is invalid unless it's accompanied
-# by the 'preserve' rule, etc.
-my %rule_spec = (
+my %meta_rules = (
   trim        => { range => [ qw/ none both leading trailing / ] },
   line_format => { range => [ qw/ none single multi blocks / ] },
   replace     => { singleton => 1 },
@@ -343,7 +294,6 @@ my %rule_spec = (
   empty       => { depends => [ qw/ preserve / ] }
 );
 
-# Ensures that the dialect's rules are valid, according to %rule_spec
 sub __check_rules {
   my $self = shift;
 
@@ -351,7 +301,7 @@ sub __check_rules {
     my $rules = $self->__rules->{$tag};
 
     foreach my $opt ( keys %$rules ) {
-      my $spec = $rule_spec{$opt} or next;
+      my $spec = $meta_rules{$opt} or next;
 
       my $singleton = $spec->{singleton} || 0;
       my @disallows = ref $spec->{disallows} eq 'ARRAY' ? @{ $spec->{disallows} } : ( );
@@ -374,16 +324,11 @@ sub __check_rules {
   }
 }
 
-# Die with a message about a broken rule
 sub __rule_error {
   my( $self, $tag, @msg ) = @_;
   my $dialect = ref $self;
   die @msg, " in tag '$tag', dialect '$dialect'.\n";
 }
-
-#
-# Utility methods
-#
 
 sub get_elem_contents {
   my( $self, $node ) = @_;
@@ -414,24 +359,6 @@ sub get_attr_str {
   return $str || '';
 }
 
-#
-# Common methods for node preprocessing
-#
-
-sub strip_aname {
-  my( $self, $node ) = @_;
-  return if $node->attr('href');
-  $node->replace_with_content->delete();
-}
-
-sub caption2para {
-  my( $self, $node ) = @_;
-  my $table = $node->parent;
-  $node->detach();
-  $table->preinsert($node);
-  $node->tag('p');
-}
-
 1;
 __END__
 
@@ -451,7 +378,7 @@ C<HTML::WikiConverter> is an HTML to wiki converter. It can convert HTML
 source into a variety of wiki markups, called wiki "dialects". The following
 dialects are supported:
 
-  DocuWiki
+  DokuWiki
   Kwiki
   MediaWiki
   MoinMoin
@@ -486,12 +413,15 @@ attributes.
 
   $wiki = $wc->html2wiki( $html );
   $wiki = $wc->html2wiki( html => $html );
-  $wiki = $wc->html2wiki( file => $path, slurp => $slurp );
+  $wiki = $wc->html2wiki( file => $file );
+  $wiki = $wc->html2wiki( file => $file, slurp => $slurp );
 
 Converts HTML source to wiki markup for the current dialect. Accepts
-either an HTML string C<$html> or an HTML file C<$path> to read from.
+either an HTML string C<$html> or an HTML file C<$file> to read from.
+
 You may optionally bypass C<HTML::Parser>'s incremental parsing of
-HTML files by giving C<$slurp> a true value.
+HTML files (thus I<slurping> the file in all at once) by giving C<$slurp>
+a true value.
 
 =item dialect
 
@@ -541,22 +471,22 @@ use C<"http://c2.com/cgi/wiki?">. Defaults to C<undef>.
 
 Helps C<HTML::TreeBuilder> parse HTML fragments by wrapping HTML in
 C<E<lt>htmlE<gt>> and C<E<lt>/htmlE<gt>> before passing it through
-C<html2wiki>. Defaults to C<0>.
+C<html2wiki>. Boolean, disabled by default.
 
 =item strip_comments
 
 Removes HTML comments from the input before conversion to wiki markup.
-Defaults to C<1>.
+Boolean, enabled by default.
 
 =item strip_head
 
 Removes the HTML C<head> element from the input before
-converting. Defaults to C<1>.
+converting. Boolean, enabled by default.
 
 =item strip_scripts
 
 Removes all HTML C<script> elements from the input before
-converting. Defaults to C<1>.
+converting. Boolean, enabled by default.
 
 =back
 
@@ -566,15 +496,11 @@ individual dialect documentation for details.
 =head1 DIALECTS
 
 C<HTML::WikiConverter> can convert HTML into markup for a variety of
-wiki engines. The markup used by a particular engine is called a wiki
-markup dialect. Support is added for dialects by installing dialect
-modules which provide the rules for how HTML is converted into that
-dialect's wiki markup.
-
-Dialect modules are registered in the C<HTML::WikiConverter::>
-namespace an are usually given names in CamelCase. For example, the
-rules for the MediaWiki dialect are provided in
-C<HTML::WikiConverter::MediaWiki>. And PhpWiki is specified in
+wiki dialects. The rules for converting HTML into a given dialect are
+specified in a dialect module registered in the
+C<HTML::WikiConverter::> namespace. For example, the rules for the
+MediaWiki dialect are provided in C<HTML::WikiConverter::MediaWiki>,
+while PhpWiki's rules are specified in
 C<HTML::WikiConverter::PhpWiki>.
 
 This section is intended for dialect module authors.
@@ -609,7 +535,7 @@ The following rules are recognized:
 =head3 Simple rules method
 
 For example, the following C<rules> method could be used for a wiki
-dialect that uses *asterisks* for bold and _underscores_ for italic
+dialect that uses C<*asterisks*> for bold and C<_underscores_> for italic
 text:
 
   sub rules {
@@ -621,8 +547,8 @@ text:
 
 =head3 Aliases
 
-To add E<lt>strongE<gt> and E<lt>emE<gt> as aliases of E<lt>bE<gt> and
-E<lt>iE<gt>, use the C<alias> rule:
+To add C<E<lt>strongE<gt>> and C<E<lt>emE<gt>> as aliases of C<E<lt>bE<gt>> and
+C<E<lt>iE<gt>>, use the C<alias> rule:
 
   sub rules {
     return {
@@ -638,22 +564,22 @@ Note that if you specify the C<alias> rule, no other rules are allowed.
 
 =head3 Blocks
 
-Many wiki dialects separate paragraphs and other block-level elements
+Many dialects separate paragraphs and other block-level elements
 with a blank line. To indicate this, use the C<block> rule:
 
   p => { block => 1 }
 
-Note that if a block-level element is nested inside another
-block-level element, blank lines are only added to the outermost
-block-level element.
+To better support nested block elements, if a block elements are
+nested inside each other, blank lines are only added to the outermost
+element.
 
 =head3 Line formatting
 
-However, many such wiki engines require that the text of a paragraph
-be contained on a single line of text. Or that a paragraph cannot
-contain any blank lines. These formatting options can be specified
-using the C<line_format> rule, which can be assigned the value
-C<"single">, C<"multi">, or C<"blocks">.
+Many dialects require that the text of a paragraph be contained on a
+single line of text. Or perhaps that a paragraph cannot contain any
+newlines. These options can be specified using the C<line_format>
+rule, which can be assigned the value C<"single">, C<"multi">, or
+C<"blocks">.
 
 If the element must be contained on a single line, then the
 C<line_format> rule should be C<"single">. If the element can span
@@ -667,54 +593,52 @@ like so in the MediaWiki dialect:
 =head3 Trimming whitespace
 
 The C<trim> rule specifies whether leading or trailing whitespace (or
-both) should be stripped from the paragraph. To strip leading
-whitespace only, use C<"leading">; for trailing whitespace, use
-C<"trailing">; for both, use the aptly named C<"both">; for neither
-(the default), use C<"none">.
+both) should be stripped from the element. To strip leading whitespace
+only, use C<"leading">; for trailing whitespace, use C<"trailing">;
+for both, use the aptly named C<"both">; for neither (the default),
+use C<"none">.
 
 =head3 Line prefixes
 
-Some multi-line elements require that each line of output be prefixed
-with a particular string. For example, preformatted text in the
-MediaWiki dialect is prefixed with a space:
+Some elements require that each line be prefixed with a particular
+string. For example, preformatted text in MediaWiki s prefixed with a
+space:
 
   pre => { block => 1, line_prefix => ' ' }
 
 =head3 Replacement
 
 In some cases, conversion from HTML to wiki markup is as simple as
-string replacement. When you want to replace a tag and its contents
-with a particular string, use the C<replace> rule. For example, in the
-PhpWiki dialect, three percent signs '%%%' represents a linebreak
-C<E<lt>br /E<gt>>, hence the rule:
+string replacement. To replace a tag and its contents with a
+particular string, use the C<replace> rule. For example, in PhpWiki,
+three percent signs '%%%' represents a linebreak C<E<lt>br /E<gt>>,
+hence the rule:
 
   br => { replace => '%%%' }
 
-If you specify the C<replace> rule, no other options are allowed.
+(The C<replace> rule cannot be used with any other rule.)
 
 =head3 Preserving HTML tags
 
-Finally, many wiki dialects allow a subset of HTML in their markup,
-such as for superscripts, subscripts, and text centering.  HTML tags
-may be preserved using the C<preserve> rule. For example, to allow the
-E<lt>fontE<gt> tag in wiki markup, one might say:
+Some dialects allow a subset of HTML in their markup. HTML tags can be
+preserved using the C<preserve> rule. For example, to allow
+C<E<lt>fontE<gt>> tag in wiki markup:
 
   font => { preserve => 1 }
 
-Preserved tags may also specify a whitelist of attributes that may
-also passthrough from HTML to wiki markup. This is done with the
+Preserved tags may also specify a list of attributes that may also
+passthrough from HTML to wiki markup. This is done with the
 C<attributes> option:
 
   font => { preserve => 1, attributes => [ qw/ font size / ] }
 
-The C<attributes> rule must be used in conjunction C<preserve>.
+(The C<attributes> rule must be used alongside the C<preserve> rule.)
 
-Some HTML elements have no content (e.g. line breaks), and should be
-preserved specially. To indicate that a preserved tag should have no
-content, use the C<empty> rule. This will cause the element to be
-replaced with C<"E<lt>tag /E<gt>">, with no end tag and any attributes
-you specified. For example, the MediaWiki dialect handles line breaks
-like so:
+Some HTML elements have no content (e.g. line breaks, images), and
+should be preserved specially. To indicate that a preserved tag should
+have no content, use the C<empty> rule. This will cause the element to
+be replaced with C<"E<lt>tag /E<gt>">, with no end tag. For example,
+MediaWiki handles line breaks like so:
 
   br => {
     preserve => 1,
@@ -723,7 +647,7 @@ like so:
   }
 
 This will convert, e.g., C<"E<lt>br clear='both'E<gt>"> into
-C<"E<lt>br clear='both' /E<gt>">.  Without specifying the C<empty>
+C<"E<lt>br clear='both' /E<gt>">. Without specifying the C<empty>
 rule, this would be converted into the undesirable C<"E<lt>br
 clear='both'E<gt>E<lt>/brE<gt>">.
 
@@ -738,13 +662,13 @@ dialect object, and will be passed the current L<HTML::Element> node
 and a hashref of the dialect's rules for processing elements of that
 type.
 
-For example, the MoinMoin dialect uses the following rules for lists:
+For example, MoinMoin handles lists like so:
 
   ul => { line_format => 'multi', block => 1, line_prefix => '  ' }
   li => { start => \&_li_start, trim => 'leading' }
   ol => { alias => 'ul' }
 
-It then defines C<_li_start> like so:
+And then defines C<_li_start>:
 
   sub _li_start {
     my( $self, $rules ) = @_;
@@ -756,9 +680,9 @@ It then defines C<_li_start> like so:
 
 This ensures that every unordered list item is prefixed with C<*> and
 every ordered list item is prefixed with C<1.>, required by the
-MoinMoin syntax. It also ensures that each list item is on a separate
-line and that there is a space between the prefix and the content of
-the list item.
+MoinMoin formatting rules. It also ensures that each list item is on a
+separate line and that there is a space between the prefix and the
+content of the list item.
 
 =head2 Rule validation
 
@@ -782,8 +706,8 @@ a dialect would define an C<attributes> method like so:
     camel_case => 0
   ) }
 
-Attributes defined liks this are given accessor and mutator methods,
-as in:
+Attributes defined liks this are given accessor and mutator methods via
+Perl's AUTOLOAD mechanism, so you can later say:
 
   my $ok = $wc->camel_case; # accessor
   $wc->camel_case(0); # mutator
@@ -793,20 +717,20 @@ as in:
 The first step in converting HTML source to wiki markup is to parse
 the HTML into a syntax tree using L<HTML::TreeBuilder>. It is often
 useful for dialects to preprocess the tree prior to converting it into
-wiki markup. Dialects that elect to preprocess the tree do so by
-defining a C<preprocess_node> object method which will be called on
-each node of the tree (traversal is done in pre-order). As its only
-argument the method receives the current L<HTML::Element> node being
-traversed. It may modify the node or decide to ignore it.  The return
-value of the C<preprocess_node> method is discarded.
+wiki markup. Dialects that need to preprocess the tree define a
+C<preprocess_node> method that will be called on each node of the tree
+(traversal is done in pre-order). As its only argument the method
+receives the current L<HTML::Element> node being traversed. It may
+modify the node or decide to ignore it. The return value of the
+C<preprocess_node> method is discarded.
 
 =head3 Built-in preprocessors
 
-Because they are so commonly needed, two preprocessing steps are
+Because they are commonly needed, two preprocessing steps are
 automatically carried out by C<HTML::WikiConverter>, regardless of the
 dialect: 1) relative URIs in images and links are converted to
 absolute URIs (based upon the C<base_uri> parameter), and 2) ignorable
-text (e.g. between E<lt>/tdE<gt> and E<lt>tdE<gt>) is discarded.
+text (e.g. between C<E<lt>/tdE<gt>> and C<E<lt>tdE<gt>>) is discarded.
 
 C<HTML::WikiConverter> also provides additional preprocessing steps
 that may be explicitly enabled by dialect modules.
@@ -825,8 +749,9 @@ table.
 
 =back
 
-Dialects may apply these preprocessing steps by calling them as
-methods on the dialect object inside C<preprocess_node>. For example:
+Dialects may apply these optional preprocessing steps by calling them
+as methods on the dialect object inside C<preprocess_node>. For
+example:
 
   sub preprocess_node {
     my( $self, $node ) = @_;
@@ -870,17 +795,17 @@ dialect modules.
 
   my $wiki = $wc->get_elem_contents( $node );
 
-Converts the contents of C<$node> (i.e. its children) into wiki markup
-and returns the resulting wiki markup.
+Converts the contents of C<$node> into wiki markup and returns the
+resulting wiki markup.
 
 =item get_wiki_page
 
   my $title = $wc->get_wiki_page( $url );
 
 Attempts to extract the title of a wiki page from the given URL,
-returning the title on success, undef on failure. If C<wiki_uri> is
+returning the title on success, C<undef> on failure. If C<wiki_uri> is
 empty, this method always return C<undef>. Assumes that URLs to wiki
-pages are constructed using I<E<lt>wiki-uriE<gt>E<lt>page-nameE<gt>>.
+pages are constructed using "I<E<lt>wiki-uriE<gt>E<lt>page-nameE<gt>>".
 
 =item is_camel_case
 
@@ -900,8 +825,8 @@ For example, if C<$node> refers to the HTML
 
   <style id="ht" class="head" onclick="editPage()">Header</span>
 
-and C<@attrs> contains "id" and "class", then C<get_attr_str> will
-return 'id="ht" class="head"'.
+and C<@attrs> contains C<"id"> and C<"class">, then C<get_attr_str> will
+return C<'id="ht" class="head"'>.
 
 =back
 
@@ -915,7 +840,7 @@ L<HTML::Tree>, L<HTML::Element>
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

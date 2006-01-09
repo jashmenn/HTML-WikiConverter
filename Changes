@@ -1,9 +1,21 @@
 # Change log for HTML::WikiConverter
 
+version: 0.40
+date:    Mon Jan 9 12:56:00 EST 2006
+ - (bug 13561) support multiple encodings via 'encoding' attribute
+ - (bug 13106) DokuWiki: rename from DocuWiki
+ - (bug 13167) PmWiki: handle <a name="anchor">
+ - (bug 13171) PmWiki: inline style rules fixed
+ - (bug 14274) MediaWiki: better <nowiki> handling
+ - (bug 14527) MediaWiki: better handling of <pre> blocks with empty lines
+ - trim whitespace at end of each wiki line
+ - html2wiki utility now installed by 'make install'
+ - 'wrap_in_html' attribute now enabled by default in H::WC
+
 version: 0.30
 date:    Fri Jun 3 15:55:00 PDT 2005
  - add support for WakkaWiki, SnipSnap, Oddmuse, and TikiWiki (see http://c2.com/cgi/wiki?TopTenWikiEngines)
- - add DocuWiki support for links, blockquotes, images, and tables
+ - add DokuWiki support for links, blockquotes, images, and tables
  - add 'strip_scripts', 'strip_head', and 'strip_comments' options, on by default
  - allow 'start' and 'end' rules to be specified with 'preserve' to allow for wiki escaping
  - allow reading from HTML files using "html2wiki( file => ... )"
@@ -17,7 +29,7 @@ date:    Fri Jun 3 15:55:00 PDT 2005
 
 version: 0.23
 date:    Sat May 22 02:19:00 PDT 2005
- - add DocuWiki dialect (with thanks to Thomas J. Messenger)
+ - add DokuWiki dialect (with thanks to Thomas J. Messenger)
  - (bug 12441) allow dialects to post-process wiki markup
  - (bug 12440) add 'empty' rule for elements with no content
  - (bug 12439) unknown HTML elements no longer ignored

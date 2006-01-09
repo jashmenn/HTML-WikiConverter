@@ -1,16 +1,20 @@
-HTML::WikiConverter version 0.30
+HTML::WikiConverter version 0.40
 ================================
 
-HTML::WikiConverter is an HTML to wiki converter capable of
-converting HTML source into a variety of wiki dialects. Supported
-dialects include:
+HTML::WikiConverter is an HTML to wiki converter capable of converting
+HTML source into a variety of wiki dialects. It's aimed at folks who are
+converting vanilla HTML websites into wikis.
 
-  DocuWiki    Kwiki
+The following dialects are supported:
+
+  DokuWiki    Kwiki
   MediaWiki   MoinMoin
   Oddmuse     PhpWiki
   PmWiki      SnipSnap
   TikiWiki    UseMod
-  WakkaWiki
+  WakkaWiki   WikkaWiki
+
+SYNOPSIS
 
 Converting HTML to wiki markup is easy:
 
@@ -18,52 +22,40 @@ Converting HTML to wiki markup is easy:
   my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
   print $wc->html2wiki( $html );
 
-You can even use the convenient command line interface:
+Or via the command-line with the included utility:
 
   % html2wiki --dialect MediaWiki input.html > output.mw
 
-COMMITTMENT ISSUES?
-
-Try before you buy:
+There's also a web interface if you're so inclined:
 
   http://diberri.dyndns.org/html2wiki.html
 
-INSTALLATION
+UNICODE SUPPORT
 
-The easiest way to install this module is via the CPAN shell:
-
-  % cpan HTML::WikiConverter
-
-Or if you'd prefer:
-
-  % perl Makefile.PL
-  % make
-  % make test
-  % make install
+One of the most significant changes in version 0.40 is
+support for multiple encodings, e.g. Unicode.
 
 DEPENDENCIES
 
   * HTML::Tree for building and manipulating HTML trees
   * HTML::Entities for encoding HTML entities
   * URI for handling URIs in links
-  * Getopt::Long for html2wiki's command line interface
 
-CHANGES IN VERSION 0.30
+CHANGES IN VERSION 0.40
 
-  * add support for WakkaWiki, SnipSnap, Oddmuse, and TikiWiki (see http://c2.com/cgi/wiki?TopTenWikiEngines)
-  * add DocuWiki support for links, blockquotes, images, and tables
-  * add 'strip_scripts', 'strip_head', and 'strip_comments' options, on by default
-  * allow reading from HTML files using "html2wiki( file => ... )"
-  * (bug 12944, 12303) preserve HTML entities in text nodes
-  * (bug 13017) MediaWiki should allow <i> and <b> to be preserved rather than converting to '' and '''
-  * backend API changes; dialect modules now subclass HTML::WikiConverter
-  * more complete tests using larger input HTML file
-  * document individual dialects
-  * lots of documentation fixes
+  * (bug 13561) support multiple encodings with 'encoding' attribute
+  * (bug 13106) rename DocuWiki to DokuWiki
+  * (bug 13167) PmWiki now handles <a name="anchor">
+  * (bug 13171) PmWiki inline style rules fixed
+  * (bug 14274) MediaWiki better applies <nowiki> tag
+  * (bug 14527) MediaWiki better handles <pre> with empty lines
+  * command-line utility (html2wiki) now installs by default
+  * 'wrap_in_html' is now enabled to prevent common mistakes
+  * whitespace is now trimmed from end of each wiki line
 
 COPYRIGHT
 
-Copyright (c) 2004-2005 David J. Iberri
+Copyright (c) 2004-2005 David J. Iberri <diberri@cpan.org>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

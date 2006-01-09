@@ -104,7 +104,7 @@ sub entity_tests {
   my $tmpl = "++++\n%s\n%s\n++\n%s\n"; # test-name, input, expected-output
 
   my $data = '';
-  my @chars = ( '<', '>', '&', decode_entities('&nbsp;') );
+  my @chars = ( '<', '>', '&' );
   foreach my $char ( @chars ) {
     ( my $charname = e($char) ) =~ s/[&;]//g;
     $data .= sprintf $tmpl, "literal ($charname)", $char, e($char)

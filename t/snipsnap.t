@@ -116,8 +116,8 @@ ordered list
   <li>three
 </ol>
 ++
-1. one 
-1. two 
+1. one
+1. two
 1. three
 ++++
 <ul>
@@ -126,8 +126,8 @@ ordered list
   <li>three
 </ul>
 ++
-* one 
-* two 
+* one
+* two
 * three
 ++++
 nested list (ol/ul)
@@ -148,13 +148,13 @@ nested list (ol/ul)
   </li>
 </ol>
 ++
-1. 1 
-** 1.a 
-** 1.b 
-** 1.c 
-1. 2 
-1. 3 
-** 3.a 
+1. 1
+** 1.a
+** 1.b
+** 1.c
+1. 2
+1. 3
+** 3.a
 ** 3.b
 ++++
 nested list (ul/ol)
@@ -177,11 +177,11 @@ nested list (ul/ol)
   </li>
 </ul>
 ++
-* 1 
-11. 1.a 
-11. 1.b 
-111. 1.c  
-* 2 
-* 3 
-11. 3.a 
+* 1
+11. 1.a
+11. 1.b
+111. 1.c
+* 2
+* 3
+11. 3.a
 11. 3.b

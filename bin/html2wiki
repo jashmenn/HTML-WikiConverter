@@ -8,13 +8,15 @@ use Getopt::Long;
 my $dialect = '';
 my $base_uri = '';
 my $wiki_uri = '';
-my $wrap_in_html = 0;
+my $wrap_in_html = undef;
+my $encoding = undef;
 
 GetOptions(
-  'dialect=s'    => \$dialect,
-  'base-uri=s'   => \$base_uri,
-  'wiki-uri=s'   => \$wiki_uri,
-  'wrap-in-html' => \$wrap_in_html,
+  'dialect=s'     => \$dialect,
+  'base-uri=s'    => \$base_uri,
+  'wiki-uri=s'    => \$wiki_uri,
+  'wrap-in-html!' => \$wrap_in_html,
+  'encoding:s'    => \$encoding,
 );
 
 $dialect ||= $ENV{WCDIALECT};
@@ -24,7 +26,8 @@ my $wc = new HTML::WikiConverter(
   dialect => $dialect,
   base_uri => $base_uri,
   wiki_uri => $wiki_uri,
-  wrap_in_html => $wrap_in_html
+  wrap_in_html => $wrap_in_html,
+  encoding => $encoding,
 );
 
 local $/;
@@ -38,9 +41,11 @@ Usage: html2wiki [--dialect <dialect>] [options] [<html-file>]
 Options:
   --base-uri      Base URI for relative links
   --wiki-uri      URI fragment for wiki links
-  --wrap-in-html  Wrap input in <html> and </html>
+  --wrap-in-html  Wrap input in <html> and </html> (default is 0)
+  --encoding      Encoding of input text (default is 'utf-8')
 
 The --dialect option is required unless the WCDIALECT environment
-variable is set to a dialect.
+variable is set to a dialect. Consult the HTML::WikiConverter manpage
+for available dialects.
 EOF
 }

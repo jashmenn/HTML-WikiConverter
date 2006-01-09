@@ -60,17 +60,15 @@ sub _link {
   my $url = $node->attr('href') || '';
   my $text = $self->get_elem_contents($node) || '';
   
-  # Internal linksw
   if( my $title = $self->get_wiki_page($url) ) {
     $title =~ s/_/ /g;
-    # Remember [[MiXed cAsE]] ==> <a href="http://site/wiki:mixed_case">MiXed cAsE</a>
+    # [[MiXed cAsE]] ==> <a href="http://site/wiki:mixed_case">MiXed cAsE</a>
     return $text if lc $title eq lc $text and $self->is_camel_case($text);
     return "[[$title|$text]]";
+  } else {
+    return $url if $url eq $text;
+    return "[[$url $text]]";
   }
-
-  # External links
-  return $url if $url eq $text;
-  return "[[$url $text]]";
 }
 
 1;
@@ -94,7 +92,7 @@ markup. See L<HTML::WikiConverter> for additional usage details.
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

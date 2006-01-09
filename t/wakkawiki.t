@@ -61,8 +61,8 @@ ul
   <li>three
 </ul>
 ++
-	- one 
-	- two 
+	- one
+	- two
 	- three
 ++++
 ol
@@ -72,8 +72,8 @@ ol
   <li>three
 </ol>
 ++
-	1) one 
-	2) two 
+	1) one
+	2) two
 	3) three
 ++++
 nested list
@@ -87,14 +87,14 @@ nested list
   <li>three
 </ul>  
 ++
-	- one 
-		1) 1 
-		2) 2 
-		3) 3 
-	- two 
-		1) 1 
-		2) 2 
-		3) 3 
+	- one
+		1) 1
+		2) 2
+		3) 3
+	- two
+		1) 1
+		2) 2
+		3) 3
 	- three
 ++++
 image

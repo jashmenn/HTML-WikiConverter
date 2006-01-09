@@ -1,6 +1,6 @@
 local $/;
 require 't/runtests.pl';
-runtests( data => <DATA>, dialect => 'DocuWiki', wiki_uri => 'http://www.test.com/wiki:', camel_case => 1 );
+runtests( data => <DATA>, dialect => 'DokuWiki', wiki_uri => 'http://www.test.com/wiki:', camel_case => 1 );
 close DATA;
 
 __DATA__
@@ -193,11 +193,11 @@ blockquote (full)
 ++
 > No we shouldn't
 
->> Well, I say we should 
+>> Well, I say we should
 
 > Really?
 
->> Yes! 
+>> Yes!
 
 >>> Then lets do it!
 ++++
@@ -263,8 +263,8 @@ ul
   <li>three
 </ul>
 ++
-  * one 
-  * two 
+  * one
+  * two
   * three
 ++++
 ul (nested)
@@ -279,10 +279,10 @@ ul (nested)
   <li>3
 </ul>
 ++
-  * 1   
-    * 1.a 
-    * 1.b  
-  * 2 
+  * 1
+    * 1.a
+    * 1.b
+  * 2
   * 3
 ++++
 ol
@@ -292,8 +292,8 @@ ol
   <li>three
 </ol>
 ++
-  - one 
-  - two 
+  - one
+  - two
   - three
 ++++
 ol (nested)
@@ -308,10 +308,10 @@ ol (nested)
   <li>3
 </ol>
 ++
-  - 1   
-    - 1.a 
-    - 1.b  
-  - 2 
+  - 1
+    - 1.a
+    - 1.b
+  - 2
   - 3
 ++++
 ul/ol combo
@@ -326,10 +326,10 @@ ul/ol combo
   <li>3
 </ol>
 ++
-  - 1 
-    * 1.a 
-    * 1.b 
-  - 2 
+  - 1
+    * 1.a
+    * 1.b
+  - 2
   - 3
 ++++
 ol/ul combo
@@ -344,8 +344,8 @@ ol/ul combo
   <li>3
 </ul>
 ++
-  * 1 
-    - 1.a 
-    - 1.b 
-  * 2 
+  * 1
+    - 1.a
+    - 1.b
+  * 2
   * 3

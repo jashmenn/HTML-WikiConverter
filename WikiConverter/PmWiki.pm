@@ -26,10 +26,10 @@ sub rules {
     tt     => { start => '@@', end => '@@', trim => 'both', line_format => 'single' },
     code   => { alias => 'tt' },
 
-    big   => { start => '+',  end => '+',  line_format => 'single' },
-    small => { start => '-',  end => '-',  line_format => 'single' },
-    sup   => { start => '^',  end => '^',  line_format => 'single' },
-    sub   => { start => '_',  end => '_',  line_format => 'single' },
+    big   => { start => "'+", end => "+'", line_format => 'single' },
+    small => { start => "'-", end => "-'", line_format => 'single' },
+    sup   => { start => "'^", end => "^'", line_format => 'single' },
+    sub   => { start => "'_", end => "_'", line_format => 'single' },
     ins   => { start => '{+', end => '+}', line_format => 'single' },
     del   => { start => '{-', end => '-}', line_format => 'single' },
 
@@ -105,9 +105,19 @@ sub _li_start {
 
 sub _link {
   my( $self, $node, $rules ) = @_;
+  return $self->_anchor($node, $rules) if $node->attr('name');
+
   my $url = $node->attr('href') || '';
   my $text = $self->get_elem_contents($node) || '';
+
+  return $url if $text eq $url;
   return "[[$url | $text]]";
+}
+
+sub _anchor {
+  my( $self, $node, $rules ) = @_;
+  my $name = $node->attr('name') || '';
+  return "[[#$name]]";
 }
 
 sub _image {
@@ -117,8 +127,22 @@ sub _image {
 
 sub preprocess_node {
   my( $self, $node ) = @_;
-  $self->strip_aname($node) if $node->tag eq 'a';
-  $self->caption2para($node) if $node->tag eq 'caption';
+  my $tag = $node->tag || '';
+  $self->_move_aname($node) if $tag eq 'a' and $node->attr('name');
+  $self->caption2para($node) if $tag eq 'caption';
+}
+
+sub _move_aname {
+  my( $self, $node ) = @_;
+
+  my $name = $node->attr('name') || '';
+  $node->attr( name => undef );
+
+  my $aname = new HTML::Element( 'a', name => $name );
+  $node->preinsert($aname);
+
+  # Keep 'a href's around
+  $node->replace_with_content->delete unless $node->attr('href');
 }
 
 1;
@@ -142,7 +166,7 @@ L<HTML::WikiConverter> for additional usage details.
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

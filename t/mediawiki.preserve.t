@@ -30,7 +30,7 @@ both strong/b
   <li> <strong>strong</strong>
 </ul>
 ++
-* <b>bold</b> 
+* <b>bold</b>
 * '''strong'''
 ++++
 preserve italic
@@ -59,5 +59,5 @@ both em/i
   <li> <em>em</em>
 </ul>
 ++
-* <i>italic</i> 
+* <i>italic</i>
 * ''em''

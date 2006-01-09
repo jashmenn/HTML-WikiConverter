@@ -4,6 +4,31 @@ runtests( data => <DATA>, dialect => 'PmWiki' );
 close DATA;
 
 __DATA__
+aname
+<h2><a name="introduction">Introduction</a></h2>
+++
+!! [[#introduction]]Introduction
+++++
+aname w/ content
+<h2><a name="intro">Introduction <b>stuff</b></a></h2>
+++
+!! [[#intro]]Introduction '''stuff'''
+++++
+aname w/ href
+<h2><a name="intro" href="http://www.google.com">Google</a></h2>
+++
+!! [[#intro]][[http://www.google.com | Google]]
+++++
+ext. link
+<a href="http://www.google.com">http://www.google.com</a>
+++
+http://www.google.com
+++++
+ext. link w/ alt text
+<a href="http://www.google.com">Google</a>
+++
+[[http://www.google.com | Google]]
+++++
 bold
 <html><b>bold</b></html>
 ++
@@ -95,22 +120,22 @@ stuff two
 sub
 <html><p>H<sub>2</sub>O</p></html>
 ++
-H_2_O
+H'_2_'O
 ++++
 sup
 <html><p>x<sup>2</sup></p></html>
 ++
-x^2^
+x'^2^'
 ++++
 small
 <html><small>small text</small></html>
 ++
--small text-
+'-small text-'
 ++++
 big
 <html><big>big text</big></html>
 ++
-+big text+
+'+big text+'
 ++++
 code
 <html><code>$name = 'stan';</code></html>
@@ -132,7 +157,7 @@ nested indent
   <blockquote>double-indented stuff</blockquote>
 </blockquote></html>
 ++
-->stuff 
+->stuff
 -->double-indented stuff
 ++++
 h1
@@ -232,5 +257,5 @@ pre w/ formatting
 ++
  this
    is pre-
-      formatted tex^t^
+      formatted tex'^t^'
          with '''special''' {-formatting-}

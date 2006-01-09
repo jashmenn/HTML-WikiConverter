@@ -91,8 +91,8 @@ list (ul)
   <li>three
 </ul>
 ++
-* one 
-* two 
+* one
+* two
 * three
 ++++
 list (ol)
@@ -102,8 +102,8 @@ list (ol)
   <li>three
 </ol>
 ++
-# one 
-# two 
+# one
+# two
 # three
 ++++
 list (nested ul/ul)
@@ -124,13 +124,13 @@ list (nested ul/ul)
   </li>
 </ul>
 ++
-* 1 
-** 1.a 
-** 1.b  
-* 2 
-* 3 
-** 3.a 
-** 3.b 
+* 1
+** 1.a
+** 1.b
+* 2
+* 3
+** 3.a
+** 3.b
 ** 3.c
 ++++
 list (nested ul/ol)
@@ -143,12 +143,12 @@ list (nested ul/ol)
   </li>
 </ul>
 ++
-* one 
+* one
 ## 1
 ## 2
 ## 3
-* two 
-* three 
+* two
+* three
 ## 1
 ## 2
 ## 3

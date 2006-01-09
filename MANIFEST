@@ -4,7 +4,7 @@ MANIFEST
 README
 Changes
 WikiConverter.pm
-WikiConverter/DocuWiki.pm
+WikiConverter/DokuWiki.pm
 WikiConverter/Kwiki.pm
 WikiConverter/MediaWiki.pm
 WikiConverter/MoinMoin.pm
@@ -15,9 +15,10 @@ WikiConverter/SnipSnap.pm
 WikiConverter/TikiWiki.pm
 WikiConverter/UseMod.pm
 WikiConverter/WakkaWiki.pm
+WikiConverter/WikkaWiki.pm
 t/runtests.pl
 t/1.t
-t/docuwiki.t
+t/dokuwiki.t
 t/kwiki.t
 t/mediawiki.t
 t/mediawiki.preserve.t
@@ -29,8 +30,9 @@ t/snipsnap.t
 t/tikiwiki.t
 t/usemod.t
 t/wakkawiki.t
+t/wikkawiki.t
 t/complete.html
-t/complete.docuwiki
+t/complete.dokuwiki
 t/complete.kwiki
 t/complete.mediawiki
 t/complete.moinmoin
@@ -41,4 +43,5 @@ t/complete.snipsnap
 t/complete.tikiwiki
 t/complete.usemod
 t/complete.wakkawiki
+t/complete.wikkawiki
 META.yml                                 Module meta-data (added by MakeMaker)

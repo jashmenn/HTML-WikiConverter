@@ -60,13 +60,11 @@ sub _link {
   my $text = $self->get_elem_contents($node) || '';
 
   if( my $title = $self->get_wiki_page($url) ) {
-    # Internal links
     $title =~ s/_/ /g;
     return $text if lc $title eq lc $text and $self->is_camel_case($text);
     return "(($text))" if lc $text eq lc $title;
     return "(($title|$text))";
   } else {
-    # External links
     return "[$url]" if $url eq $text;
     return "[$url|$text]";
   }
@@ -103,7 +101,7 @@ Unsupported formatting rules:
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

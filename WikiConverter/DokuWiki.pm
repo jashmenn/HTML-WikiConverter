@@ -1,4 +1,4 @@
-package HTML::WikiConverter::DocuWiki;
+package HTML::WikiConverter::DokuWiki;
 use base 'HTML::WikiConverter';
 use warnings;
 use strict;
@@ -53,12 +53,8 @@ sub attributes { (
 
 sub postprocess_output {
   my( $self, $outref ) = @_;
-
-  # Remove empty blockquote prefixes
-  $$outref =~ s/^>+\s+//gm;
-
-  # Add space after blockquote prefix for clarity
-  $$outref =~ s/^(>+)/$1 /gm;
+  $$outref =~ s~^>+\s+~~gm; # rm empty blockquote prefixes
+  $$outref =~ s~^(>+)~$1 ~gm; # add space after prefix for clarity
 }
 
 sub _li_start {
@@ -78,14 +74,12 @@ sub _link {
   my $text = $self->get_elem_contents($node) || '';
   
   if( my $title = $self->get_wiki_page($url) ) {
-    # Internal links
-    # Remember [[MiXed cAsE]] ==> <a href="http://site/wiki:mixed_case">MiXed cAsE</a>
+    # [[MiXed cAsE]] ==> <a href="http://site/wiki:mixed_case">MiXed cAsE</a>
     $title =~ s/_/ /g;
     return $text if $self->camel_case and lc $title eq lc $text and $self->is_camel_case($text);
     return "[[$text]]" if lc $text eq lc $title;
     return "[[$title|$text]]";
   } else {
-    # External links
     return $url if $url eq $text;
     return "[[$url|$text]]";
   }
@@ -109,7 +103,7 @@ sub _image {
   my $padright = $class eq 'medialeft' || $class eq 'mediacenter' ? ' ' : '';
   $src = "$padleft$src$padright";
 
-  # Currently all images are treated as external
+  # All images considered external
   my $caption = $node->attr('title') || $node->attr('alt') || '';
   return "{{$src|$caption}}" if $caption;
   return "{{$src}}";
@@ -118,7 +112,7 @@ sub _image {
 sub _td_start {
   my( $self, $node, $rules ) = @_;
   my $prefix = $node->tag eq 'th' ? '^' : '|';
-  $prefix .= ' '; # all cells have at least one space padding
+  $prefix .= ' ';
 
   my $class = $node->attr('class') || '';
   $prefix .= ' ' if $class eq 'rightalign' or $class eq 'centeralign';
@@ -129,12 +123,11 @@ sub _td_start {
 sub _td_end {
   my( $self, $node, $rules ) = @_;
 
-  my $end = ' '; # all cells have at least one space padding
+  my $end = ' ';
 
   my $class = $node->attr('class') || '';
   $end .= ' ' if $class eq 'leftalign' or $class eq 'centeralign';
 
-  # Only send alignment-related whitespace; the next td/th will terminate this cell
   my $colspan = $node->attr('colspan') || 1;
 
   my @right_cells = grep { $_->tag && $_->tag =~ /th|td/ } $node->right;
@@ -151,17 +144,17 @@ __END__
 
 =head1 NAME
 
-HTML::WikiConverter::DocuWiki - HTML-to-wiki conversion rules for DocuWiki
+HTML::WikiConverter::DokuWiki - HTML-to-wiki conversion rules for DokuWiki
 
 =head1 SYNOPSIS
 
   use HTML::WikiConverter;
-  my $wc = new HTML::WikiConverter( dialect => 'DocuWiki' );
+  my $wc = new HTML::WikiConverter( dialect => 'DokuWiki' );
   print $wc->html2wiki( $html );
 
 =head1 DESCRIPTION
 
-This module contains rules for converting HTML into DocuWiki
+This module contains rules for converting HTML into DokuWiki
 markup. See L<HTML::WikiConverter> for additional usage details.
 
 =head1 ATTRIBUTES
@@ -174,12 +167,12 @@ following attributes:
 
 =item camel_case
 
-Boolean indicating whether CamelCase links are enabled in the target DocuWiki
+Boolean indicating whether CamelCase links are enabled in the target DokuWiki
 instance. Enabling CamelCase links will turn HTML like this
 
   <p><a href="/wiki:camelcase">CamelCase</a> links are fun.</p>
 
-into this DocuWiki markup:
+into this DokuWiki markup:
 
   CamelCase links are fun.
 
@@ -191,7 +184,7 @@ Disabling CamelCase links (the default) would convert that HTML into
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 

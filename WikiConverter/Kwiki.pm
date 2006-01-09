@@ -44,8 +44,6 @@ sub rules {
   return \%rules;
 }
 
-# Calculates the prefix that will be placed before each list item.
-# List item include ordered and unordered list items.
 sub _li_start {
   my( $self, $node, $rules ) = @_;
   my @parent_lists = $node->look_up( _tag => qr/ul|ol/ );
@@ -64,16 +62,14 @@ sub _link {
   my $url = $node->attr('href') || '';
   my $text = $self->get_elem_contents($node) || '';
 
-  # Handle the internal links
   if( my $title = $self->get_wiki_page($url) ) {
     return $title if $self->is_camel_case( $title ) and $text eq $title;
     return "[$title]" if $text eq $title;
     return "[$text http:?$title]" if $text ne $title;
+  } else {
+    return $url if $text eq $url;
+    return "[$text $url]";
   }
-
-  # Handle the external ones
-  return $url if $text eq $url;
-  return "[$text $url]";
 }
 
 sub _image {
@@ -108,7 +104,7 @@ L<HTML::WikiConverter> for additional usage details.
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@yahoo.com>
+David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 
