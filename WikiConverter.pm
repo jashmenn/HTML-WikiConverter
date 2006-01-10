@@ -7,7 +7,7 @@ use Encode;
 use HTML::Entities;
 use HTML::TreeBuilder;
 use vars '$VERSION';
-$VERSION = '0.40';
+$VERSION = '0.41';
 our $AUTOLOAD;
 
 sub new {
@@ -275,7 +275,7 @@ sub preprocess_node { }
 
 sub __postprocess_output {
   my( $self, $outref ) = @_;
-  $$outref =~ s/\n[\s^\n]+\n/\n\n/g; # XXX this is causing bug 14527
+  $$outref =~ s/\n[\s^\n]+\n/\n\n/g;
   $$outref =~ s/\n{2,}/\n\n/g;
   $$outref =~ s/^\n+//;
   $$outref =~ s/\s+$//;
@@ -389,6 +389,7 @@ dialects are supported:
   TikiWiki
   UseMod
   WakkaWiki
+  WikkaWiki
 
 Note that while dialects usually produce satisfactory wiki markup, not
 all features of all dialects are supported. Consult individual
@@ -471,7 +472,13 @@ use C<"http://c2.com/cgi/wiki?">. Defaults to C<undef>.
 
 Helps C<HTML::TreeBuilder> parse HTML fragments by wrapping HTML in
 C<E<lt>htmlE<gt>> and C<E<lt>/htmlE<gt>> before passing it through
-C<html2wiki>. Boolean, disabled by default.
+C<html2wiki>. Boolean, enabled by default.
+
+=item encoding
+
+Specifies the encoding used by the HTML to be converted. Also
+determines the encoding of the wiki markup returned by the
+C<html2wiki> method. Defaults to C<'utf8'>.
 
 =item strip_comments
 
@@ -490,345 +497,15 @@ converting. Boolean, enabled by default.
 
 =back
 
-Some dialects allow other parameters in addition to these. Consult
+Some dialects allow other attributes in addition to these. Consult
 individual dialect documentation for details.
 
-=head1 DIALECTS
-
-C<HTML::WikiConverter> can convert HTML into markup for a variety of
-wiki dialects. The rules for converting HTML into a given dialect are
-specified in a dialect module registered in the
-C<HTML::WikiConverter::> namespace. For example, the rules for the
-MediaWiki dialect are provided in C<HTML::WikiConverter::MediaWiki>,
-while PhpWiki's rules are specified in
-C<HTML::WikiConverter::PhpWiki>.
-
-This section is intended for dialect module authors.
-
-=head2 Conversion rules
-
-To interface with C<HTML::WikiConverter>, dialect modules must define a
-single C<rules> class method. It returns a reference to a hash of
-rules that specify how individual HTML elements are converted to wiki
-markup.
-
-=head3 Supported rules
-
-The following rules are recognized:
-
-  start
-  end
-
-  preserve
-  attributes
-  empty
-
-  replace
-  alias
-
-  block
-  line_format
-  line_prefix
-
-  trim
-
-=head3 Simple rules method
-
-For example, the following C<rules> method could be used for a wiki
-dialect that uses C<*asterisks*> for bold and C<_underscores_> for italic
-text:
-
-  sub rules {
-    return {
-      b => { start => '*', end => '*' },
-      i => { start => '_', end => '_' }
-    };
-  }
-
-=head3 Aliases
-
-To add C<E<lt>strongE<gt>> and C<E<lt>emE<gt>> as aliases of C<E<lt>bE<gt>> and
-C<E<lt>iE<gt>>, use the C<alias> rule:
-
-  sub rules {
-    return {
-      b => { start => '*', end => '*' },
-      strong => { alias => 'b' },
-
-      i => { start => '_', end => '_' },
-      em => { alias => 'i' }
-    };
-  }
-
-Note that if you specify the C<alias> rule, no other rules are allowed.
-
-=head3 Blocks
-
-Many dialects separate paragraphs and other block-level elements
-with a blank line. To indicate this, use the C<block> rule:
-
-  p => { block => 1 }
-
-To better support nested block elements, if a block elements are
-nested inside each other, blank lines are only added to the outermost
-element.
-
-=head3 Line formatting
-
-Many dialects require that the text of a paragraph be contained on a
-single line of text. Or perhaps that a paragraph cannot contain any
-newlines. These options can be specified using the C<line_format>
-rule, which can be assigned the value C<"single">, C<"multi">, or
-C<"blocks">.
-
-If the element must be contained on a single line, then the
-C<line_format> rule should be C<"single">. If the element can span
-multiple lines, but there can be no blank lines contained within, then
-it should be C<"multi">. If blank lines (which delimit blocks) are
-allowed, then use C<"blocks">. For example, paragraphs are specified
-like so in the MediaWiki dialect:
-
-  p => { block => 1, line_format => 'multi', trim => 'both' }
-
-=head3 Trimming whitespace
-
-The C<trim> rule specifies whether leading or trailing whitespace (or
-both) should be stripped from the element. To strip leading whitespace
-only, use C<"leading">; for trailing whitespace, use C<"trailing">;
-for both, use the aptly named C<"both">; for neither (the default),
-use C<"none">.
-
-=head3 Line prefixes
-
-Some elements require that each line be prefixed with a particular
-string. For example, preformatted text in MediaWiki s prefixed with a
-space:
-
-  pre => { block => 1, line_prefix => ' ' }
-
-=head3 Replacement
-
-In some cases, conversion from HTML to wiki markup is as simple as
-string replacement. To replace a tag and its contents with a
-particular string, use the C<replace> rule. For example, in PhpWiki,
-three percent signs '%%%' represents a linebreak C<E<lt>br /E<gt>>,
-hence the rule:
-
-  br => { replace => '%%%' }
-
-(The C<replace> rule cannot be used with any other rule.)
-
-=head3 Preserving HTML tags
-
-Some dialects allow a subset of HTML in their markup. HTML tags can be
-preserved using the C<preserve> rule. For example, to allow
-C<E<lt>fontE<gt>> tag in wiki markup:
-
-  font => { preserve => 1 }
-
-Preserved tags may also specify a list of attributes that may also
-passthrough from HTML to wiki markup. This is done with the
-C<attributes> option:
-
-  font => { preserve => 1, attributes => [ qw/ font size / ] }
-
-(The C<attributes> rule must be used alongside the C<preserve> rule.)
-
-Some HTML elements have no content (e.g. line breaks, images), and
-should be preserved specially. To indicate that a preserved tag should
-have no content, use the C<empty> rule. This will cause the element to
-be replaced with C<"E<lt>tag /E<gt>">, with no end tag. For example,
-MediaWiki handles line breaks like so:
-
-  br => {
-    preserve => 1,
-    attributes => qw/ id class title style clear /,
-    empty => 1
-  }
-
-This will convert, e.g., C<"E<lt>br clear='both'E<gt>"> into
-C<"E<lt>br clear='both' /E<gt>">. Without specifying the C<empty>
-rule, this would be converted into the undesirable C<"E<lt>br
-clear='both'E<gt>E<lt>/brE<gt>">.
-
-The C<empty> rule must be combined with the C<preserve> rule.
-
-=head2 Dynamic rules
-
-Instead of simple strings, you may use coderefs as values for the
-C<start>, C<end>, C<replace>, and C<line_prefix> rules. If you do, the
-code will be called as a method on the current C<HTML::WikiConverter>
-dialect object, and will be passed the current L<HTML::Element> node
-and a hashref of the dialect's rules for processing elements of that
-type.
-
-For example, MoinMoin handles lists like so:
-
-  ul => { line_format => 'multi', block => 1, line_prefix => '  ' }
-  li => { start => \&_li_start, trim => 'leading' }
-  ol => { alias => 'ul' }
-
-And then defines C<_li_start>:
-
-  sub _li_start {
-    my( $self, $rules ) = @_;
-    my $bullet = '';
-    $bullet = '*'  if $node->parent->tag eq 'ul';
-    $bullet = '1.' if $node->parent->tag eq 'ol';
-    return "\n$bullet ";
-  }
-
-This ensures that every unordered list item is prefixed with C<*> and
-every ordered list item is prefixed with C<1.>, required by the
-MoinMoin formatting rules. It also ensures that each list item is on a
-separate line and that there is a space between the prefix and the
-content of the list item.
-
-=head2 Rule validation
-
-Certain rule combinations are not allowed. For example, the C<replace>
-and C<alias> rules cannot be combined with any other rules, and
-C<attributes> can only be specified alongside C<preserve>. Invalid
-rule combinations will trigger an error when the
-C<HTML::WikiConverter> object is instantiated.
-
-=head2 Dialect attributes
-
-The attributes that are recognized by the C<HTML::WikiConverter> are
-given in the C<attributes> method, which returns a hash of attribute
-names and their defaults. Dialects that wish to alter the set of
-recognized attributes must override this method. For example, to add
-a boolean attribute called C<camel_case> with is disabled by default,
-a dialect would define an C<attributes> method like so:
-
-  sub attributes { (
-    shift->SUPER::attributes,
-    camel_case => 0
-  ) }
-
-Attributes defined liks this are given accessor and mutator methods via
-Perl's AUTOLOAD mechanism, so you can later say:
-
-  my $ok = $wc->camel_case; # accessor
-  $wc->camel_case(0); # mutator
-
-=head2 Preprocessing
-
-The first step in converting HTML source to wiki markup is to parse
-the HTML into a syntax tree using L<HTML::TreeBuilder>. It is often
-useful for dialects to preprocess the tree prior to converting it into
-wiki markup. Dialects that need to preprocess the tree define a
-C<preprocess_node> method that will be called on each node of the tree
-(traversal is done in pre-order). As its only argument the method
-receives the current L<HTML::Element> node being traversed. It may
-modify the node or decide to ignore it. The return value of the
-C<preprocess_node> method is discarded.
-
-=head3 Built-in preprocessors
-
-Because they are commonly needed, two preprocessing steps are
-automatically carried out by C<HTML::WikiConverter>, regardless of the
-dialect: 1) relative URIs in images and links are converted to
-absolute URIs (based upon the C<base_uri> parameter), and 2) ignorable
-text (e.g. between C<E<lt>/tdE<gt>> and C<E<lt>tdE<gt>>) is discarded.
-
-C<HTML::WikiConverter> also provides additional preprocessing steps
-that may be explicitly enabled by dialect modules.
-
-=over
-
-=item strip_aname
-
-Removes from the HTML input any anchor elements that do not contain an
-C<href> attribute.
-
-=item caption2para
-
-Removes table captions and reinserts them as paragraphs before the
-table.
-
-=back
-
-Dialects may apply these optional preprocessing steps by calling them
-as methods on the dialect object inside C<preprocess_node>. For
-example:
-
-  sub preprocess_node {
-    my( $self, $node ) = @_;
-    $self->strip_aname($node);
-    $self->caption2para($node);
-  }
-
-=head2 Postprocessing
-
-Once the work of converting HTML, it is sometimes useful to
-postprocess the resulting wiki markup. Postprocessing can be used to
-clean up whitespace, fix subtle bugs in the markup that can't
-otherwise be done in the original conversion, etc.
-
-Dialects that want to postprocess the wiki markup should define a
-C<postprocess_output> object method that will be called just before
-theC<html2wiki> method returns to the client. The method will be
-passed a single argument, a reference to the wiki markup. It may
-modify the wiki markup that the reference points to. Its return value
-is discarded.
-
-For example, to convert a series of line breaks to be replaced with
-a pair of newlines, a dialect might implement this:
-
-  sub postprocess_output {
-    my( $self, $outref ) = @_;
-    $$outref =~ s/<br>\s*<br>/\n\n/g;
-  }
-
-(This example assumes that HTML line breaks were replaced with
-C<E<lt>brE<gt>> in the wiki markup.)
-
-=head2 Dialect utility methods
-
-C<HTML::WikiConverter> defines a set of utility methods for use by
-dialect modules.
-
-=over
-
-=item get_elem_contents
-
-  my $wiki = $wc->get_elem_contents( $node );
-
-Converts the contents of C<$node> into wiki markup and returns the
-resulting wiki markup.
-
-=item get_wiki_page
-
-  my $title = $wc->get_wiki_page( $url );
-
-Attempts to extract the title of a wiki page from the given URL,
-returning the title on success, C<undef> on failure. If C<wiki_uri> is
-empty, this method always return C<undef>. Assumes that URLs to wiki
-pages are constructed using "I<E<lt>wiki-uriE<gt>E<lt>page-nameE<gt>>".
-
-=item is_camel_case
-
-  my $ok = $wc->is_camel_case( $str );
-
-Returns true if C<$str> is in CamelCase, false
-otherwise. CamelCase-ness is determined using the same rules as
-L<CGI::Kwiki>'s formatting module uses.
-
-=item get_attr_str
-
-  my $attr_str = $wc->get_attr_str( $node, @attrs );
-
-Returns a string containing the specified attributes in the given
-node. The returned string is suitable for insertion into an HTML tag.
-For example, if C<$node> refers to the HTML
-
-  <style id="ht" class="head" onclick="editPage()">Header</span>
-
-and C<@attrs> contains C<"id"> and C<"class">, then C<get_attr_str> will
-return C<'id="ht" class="head"'>.
-
-=back
+=head1 ADDING A DIALECT
+
+Consult L<HTML::WikiConverter::Dialects> for documentation on how to
+write your own dialect module for C<HTML::WikiConverter>. Or if you're
+not up to the task, drop me an email and I'll have a go at it when I
+get a spare moment.
 
 =head1 BUGS
 

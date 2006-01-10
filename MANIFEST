@@ -4,6 +4,7 @@ MANIFEST
 README
 Changes
 WikiConverter.pm
+WikiConverter/Dialects.pod
 WikiConverter/DokuWiki.pm
 WikiConverter/Kwiki.pm
 WikiConverter/MediaWiki.pm

@@ -1,5 +1,9 @@
 # Change log for HTML::WikiConverter
 
+version: 0.41
+date:    Mon Jan 9 10:46:00 EST 2006
+ - update documentation for version 0.40 (no code changes)
+
 version: 0.40
 date:    Mon Jan 9 12:56:00 EST 2006
  - (bug 13561) support multiple encodings via 'encoding' attribute

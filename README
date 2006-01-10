@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.40
+HTML::WikiConverter version 0.41
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
@@ -32,8 +32,8 @@ There's also a web interface if you're so inclined:
 
 UNICODE SUPPORT
 
-One of the most significant changes in version 0.40 is
-support for multiple encodings, e.g. Unicode.
+Version 0.40 of HTML::WikiConverter brought support for multiple
+encodings, e.g. Unicode, via the 'encodings' attribute.
 
 DEPENDENCIES
 
@@ -41,17 +41,9 @@ DEPENDENCIES
   * HTML::Entities for encoding HTML entities
   * URI for handling URIs in links
 
-CHANGES IN VERSION 0.40
+CHANGES IN VERSION 0.41
 
-  * (bug 13561) support multiple encodings with 'encoding' attribute
-  * (bug 13106) rename DocuWiki to DokuWiki
-  * (bug 13167) PmWiki now handles <a name="anchor">
-  * (bug 13171) PmWiki inline style rules fixed
-  * (bug 14274) MediaWiki better applies <nowiki> tag
-  * (bug 14527) MediaWiki better handles <pre> with empty lines
-  * command-line utility (html2wiki) now installs by default
-  * 'wrap_in_html' is now enabled to prevent common mistakes
-  * whitespace is now trimmed from end of each wiki line
+  * Documentation fixes only; otherwise identical to 0.40
 
 COPYRIGHT
 
