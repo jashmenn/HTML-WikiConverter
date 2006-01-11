@@ -6,9 +6,57 @@ use URI;
 use Encode;
 use HTML::Entities;
 use HTML::TreeBuilder;
-use vars '$VERSION';
-$VERSION = '0.41';
+
+our $VERSION = '0.50';
 our $AUTOLOAD;
+
+=head1 NAME
+
+HTML::WikiConverter - Convert HTML to wiki markup
+
+=head1 SYNOPSIS
+
+  use HTML::WikiConverter;
+  my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
+  print $wc->html2wiki( $html );
+
+=head1 DESCRIPTION
+
+C<HTML::WikiConverter> is an HTML to wiki converter. It can convert HTML
+source into a variety of wiki markups, called wiki "dialects". The following
+dialects are supported:
+
+  DokuWiki
+  Kwiki
+  MediaWiki
+  MoinMoin
+  Oddmuse
+  PhpWiki
+  PmWiki
+  SlipSlap
+  TikiWiki
+  UseMod
+  WakkaWiki
+  WikkaWiki
+
+Note that while dialects usually produce satisfactory wiki markup, not
+all features of all dialects are supported. Consult individual
+dialects' documentation for details of supported features. Suggestions
+for improvements, especially in the form of patches, are very much
+appreciated.
+
+=head1 METHODS
+
+=head2 new
+
+  my $wc = new HTML::WikiConverter( dialect => $dialect, %attrs );
+
+Returns a converter for the specified wiki dialect. Dies if
+C<$dialect> is not provided or its dialect module is not installed on
+your system. Attributes may be specified in C<%attrs>; see
+L</"ATTRIBUTES"> for a list of recognized attributes.
+
+=cut
 
 sub new {
   my( $pkg, %opts ) = @_;
@@ -52,7 +100,6 @@ sub attributes { (
 
 sub __root { shift->__param( __root => @_ ) }
 sub __rules { shift->__param( __rules => @_ ) }
-sub parsed_html { shift->__param( __parsed_html => @_ ) }
 
 sub __param {
   my( $self, $param, $value ) = @_;
@@ -81,6 +128,22 @@ sub __slurp {
   close F;
   return $f;
 }
+
+=head2 html2wiki
+
+  $wiki = $wc->html2wiki( $html );
+  $wiki = $wc->html2wiki( html => $html );
+  $wiki = $wc->html2wiki( file => $file );
+  $wiki = $wc->html2wiki( file => $file, slurp => $slurp );
+
+Converts HTML source to wiki markup for the current dialect. Accepts
+either an HTML string C<$html> or an HTML file C<$file> to read from.
+
+You may optionally bypass C<HTML::Parser>'s incremental parsing of
+HTML files (thus I<slurping> the file in all at once) by giving C<$slurp>
+a true value.
+
+=cut
 
 sub html2wiki {
   my $self = shift;
@@ -359,87 +422,23 @@ sub get_attr_str {
   return $str || '';
 }
 
-1;
-__END__
-
-=head1 NAME
-
-HTML::WikiConverter - An HTML to wiki markup converter
-
-=head1 SYNOPSIS
-
-  use HTML::WikiConverter;
-  my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
-  print $wc->html2wiki( $html );
-
-=head1 DESCRIPTION
-
-C<HTML::WikiConverter> is an HTML to wiki converter. It can convert HTML
-source into a variety of wiki markups, called wiki "dialects". The following
-dialects are supported:
-
-  DokuWiki
-  Kwiki
-  MediaWiki
-  MoinMoin
-  Oddmuse
-  PhpWiki
-  PmWiki
-  SlipSlap
-  TikiWiki
-  UseMod
-  WakkaWiki
-  WikkaWiki
-
-Note that while dialects usually produce satisfactory wiki markup, not
-all features of all dialects are supported. Consult individual
-dialects' documentation for details of supported features. Suggestions
-for improvements, especially in the form of patches, are very much
-appreciated.
-
-=head1 METHODS
-
-=over
-
-=item new
-
-  my $wc = new HTML::WikiConverter( dialect => $dialect, %attrs );
-
-Returns a converter for the specified dialect. Dies if C<$dialect> is
-not provided or is not installed on your system. Attributes may be
-specified in C<%attrs>; see L</"ATTRIBUTES"> for a list of recognized
-attributes.
-
-=item html2wiki
-
-  $wiki = $wc->html2wiki( $html );
-  $wiki = $wc->html2wiki( html => $html );
-  $wiki = $wc->html2wiki( file => $file );
-  $wiki = $wc->html2wiki( file => $file, slurp => $slurp );
-
-Converts HTML source to wiki markup for the current dialect. Accepts
-either an HTML string C<$html> or an HTML file C<$file> to read from.
-
-You may optionally bypass C<HTML::Parser>'s incremental parsing of
-HTML files (thus I<slurping> the file in all at once) by giving C<$slurp>
-a true value.
-
-=item dialect
-
-  my $dialect = $wc->dialect;
-
-Returns the name of the dialect used to construct this
-C<HTML::WikiConverter> object.
-
-=item parsed_html
+=head2 parsed_html
 
   my $html = $wc->parsed_html;
 
-Returns C<HTML::TreeBuilder>'s representation of the last-parsed
+Returns L<HTML::TreeBuilder>'s representation of the last-parsed
 syntax tree, showing how the input HTML was parsed internally. This is
 often useful for debugging.
 
-=back
+=head2 dialect
+
+  my $dialect = $wc->dialect;
+
+Returns the dialect passed to C<new>.
+
+=cut
+
+sub parsed_html { shift->__param( __parsed_html => @_ ) }
 
 =head1 ATTRIBUTES
 
@@ -448,9 +447,14 @@ attributes. These may be passed as arguments to the C<new>
 constructor, or can be called as object methods on a
 C<HTML::WikiConverter> object.
 
-=over
+Some dialects allow other attributes in addition to those
+below. Consult individual dialect documentation for details.
 
-=item base_uri
+=head2 dialect
+
+B<Required.> Dialect to use when converting 
+
+=head2 base_uri
 
 URI to use for converting relative URIs to absolute ones. This
 effectively ensures that the C<src> and C<href> attributes of image
@@ -460,7 +464,7 @@ internal and external links separately. Relative URLs are only
 converted to absolute ones if the C<base_uri> argument is
 present. Defaults to C<undef>.
 
-=item wiki_uri
+=head2 wiki_uri
 
 URI used in determining which links are wiki links. This assumes that
 URLs to wiki pages are created by joining the C<wiki_uri> with the
@@ -468,37 +472,32 @@ URLs to wiki pages are created by joining the C<wiki_uri> with the
 would use C<"http://en.wikipedia.org/wiki/">, while Ward's wiki would
 use C<"http://c2.com/cgi/wiki?">. Defaults to C<undef>.
 
-=item wrap_in_html
+=head2 wrap_in_html
 
 Helps C<HTML::TreeBuilder> parse HTML fragments by wrapping HTML in
 C<E<lt>htmlE<gt>> and C<E<lt>/htmlE<gt>> before passing it through
 C<html2wiki>. Boolean, enabled by default.
 
-=item encoding
+=head2 encoding
 
 Specifies the encoding used by the HTML to be converted. Also
 determines the encoding of the wiki markup returned by the
 C<html2wiki> method. Defaults to C<'utf8'>.
 
-=item strip_comments
+=head2 strip_comments
 
 Removes HTML comments from the input before conversion to wiki markup.
 Boolean, enabled by default.
 
-=item strip_head
+=head2 strip_head
 
 Removes the HTML C<head> element from the input before
 converting. Boolean, enabled by default.
 
-=item strip_scripts
+=head2 strip_scripts
 
 Removes all HTML C<script> elements from the input before
 converting. Boolean, enabled by default.
-
-=back
-
-Some dialects allow other attributes in addition to these. Consult
-individual dialect documentation for details.
 
 =head1 ADDING A DIALECT
 
@@ -507,25 +506,59 @@ write your own dialect module for C<HTML::WikiConverter>. Or if you're
 not up to the task, drop me an email and I'll have a go at it when I
 get a spare moment.
 
-=head1 BUGS
-
-Please report bugs using http://rt.cpan.org.
-
 =head1 SEE ALSO
 
 L<HTML::Tree>, L<HTML::Element>
 
 =head1 AUTHOR
 
-David J. Iberri <diberri@cpan.org>
+David J. Iberri, C<< <diberri at cpan.org> >>
 
-=head1 COPYRIGHT
+=head1 BUGS
 
-Copyright (c) 2004-2005 David J. Iberri
+Please report any bugs or feature requests to
+C<bug-html-wikiconverter at rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=HTML-WikiConverter>.
+I will be notified, and then you'll automatically be notified of progress on
+your bug as I make changes.
 
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
+=head1 SUPPORT
 
-See http://www.perl.com/perl/misc/Artistic.html
+You can find documentation for this module with the perldoc command.
+
+    perldoc HTML::WikiConverter
+
+You can also look for information at:
+
+=over 4
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/HTML-WikiConverter>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/HTML-WikiConverter>
+
+=item * RT: CPAN's request tracker
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=HTML-WikiConverter>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/HTML-WikiConverter>
+
+=back
+
+=head1 ACKNOWLEDGEMENTS
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2006 David J. Iberri, all rights reserved.
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
 
 =cut
+
+1;

@@ -1,0 +1,19 @@
+INSTALLATION
+
+The easiest way to install HTML::WikiConverter is via the CPAN shell:
+
+  % cpan HTML::WikiConverter
+
+You may also obtain the source as a .tar.gz, in which case you can run
+the following after unpacking:
+
+  % perl Makefile.PL
+  % make && make test && make install
+
+The 'make install' step attempts to install the module and the
+html2wiki utility into something like /usr or /usr/local, which
+probably won't work unless you're an administrator. To work around
+this, you may install into your own local directory like so:
+
+  % perl Makefile.PL PREFIX=~/myperl5
+  % make && make test && make install

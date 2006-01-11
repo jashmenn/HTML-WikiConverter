@@ -1,16 +1,20 @@
+use strict;
+use warnings;
 use ExtUtils::MakeMaker;
-# See lib/ExtUtils/MakeMaker.pm for details of how to influence
-# the contents of the Makefile that is written.
+
 WriteMakefile(
-    'NAME'		=> 'HTML::WikiConverter',
-    'VERSION_FROM'	=> 'WikiConverter.pm', # finds $VERSION
-    'EXE_FILES'         => [ 'bin/html2wiki' ],
-    'PREREQ_PM'		=> {
-      'HTML::Tree'     => 3.18,
-      'URI'            => 1.35,
-      'HTML::Entities' => 1.27,
-    }, # e.g., Module::Name => 1.1
-    ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
-      (ABSTRACT_FROM => 'WikiConverter.pm', # retrieve abstract from module
-       AUTHOR     => 'David Iberri <diberri@cpan.org>') : ()),
+    NAME                => 'HTML::WikiConverter',
+    AUTHOR              => 'David J. Iberri <diberri@cpan.org>',
+    VERSION_FROM        => 'lib/HTML/WikiConverter.pm',
+    ABSTRACT_FROM       => 'lib/HTML/WikiConverter.pm',
+    PL_FILES            => {},
+    EXE_FILES           => [ 'bin/html2wiki' ],
+    PREREQ_PM => {
+        'Test::More'     => 0,
+        'HTML::Tree'     => 3.18,
+        'URI'            => 1.35,
+        'HTML::Entities' => 1.27,
+    },
+    dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
+    clean               => { FILES => 'HTML-WikiConverter-*' },
 );

@@ -1,166 +1,181 @@
 # Change log for HTML::WikiConverter
 
+version: 0.50
+date:    Tue Jan 10 2006
+changes:
+  - separate each dialect into is own CPAN package for maintainability
+
 version: 0.41
 date:    Mon Jan 9 10:46:00 EST 2006
- - update documentation for version 0.40 (no code changes)
+changes:
+  - update documentation (no code changes)
 
 version: 0.40
 date:    Mon Jan 9 12:56:00 EST 2006
- - (bug 13561) support multiple encodings via 'encoding' attribute
- - (bug 13106) DokuWiki: rename from DocuWiki
- - (bug 13167) PmWiki: handle <a name="anchor">
- - (bug 13171) PmWiki: inline style rules fixed
- - (bug 14274) MediaWiki: better <nowiki> handling
- - (bug 14527) MediaWiki: better handling of <pre> blocks with empty lines
- - trim whitespace at end of each wiki line
- - html2wiki utility now installed by 'make install'
- - 'wrap_in_html' attribute now enabled by default in H::WC
+changes:
+  - (bug 13561) support multiple encodings via 'encoding' attribute
+  - (bug 13106) DokuWiki: rename from DocuWiki
+  - (bug 13167) PmWiki: handle <a name="anchor">
+  - (bug 13171) PmWiki: inline style rules fixed
+  - (bug 14274) MediaWiki: better <nowiki> handling
+  - (bug 14527) MediaWiki: better handling of <pre> blocks with empty lines
+  - trim whitespace at end of each wiki line
+  - html2wiki utility now installed by 'make install'
+  - 'wrap_in_html' attribute now enabled by default in H::WC
 
 version: 0.30
 date:    Fri Jun 3 15:55:00 PDT 2005
- - add support for WakkaWiki, SnipSnap, Oddmuse, and TikiWiki (see http://c2.com/cgi/wiki?TopTenWikiEngines)
- - add DokuWiki support for links, blockquotes, images, and tables
- - add 'strip_scripts', 'strip_head', and 'strip_comments' options, on by default
- - allow 'start' and 'end' rules to be specified with 'preserve' to allow for wiki escaping
- - allow reading from HTML files using "html2wiki( file => ... )"
- - (bug 12944, 12303) preserve HTML entities in text nodes
- - (bug 13017) MediaWiki should allow <i> and <b> to be preserved rather than converting to '' and '''
- - backend API changes; dialect modules now subclass HTML::WikiConverter
- - dialects specify their attributes using the attributes() method
- - more complete tests using larger input HTML file
- - document individual dialects
- - lots of documentation fixes
+changes:
+  - add support for WakkaWiki, SnipSnap, Oddmuse, and TikiWiki (see http://c2.com/cgi/wiki?TopTenWikiEngines)
+  - add DokuWiki support for links, blockquotes, images, and tables
+  - add 'strip_scripts', 'strip_head', and 'strip_comments' options, on by default
+  - allow 'start' and 'end' rules to be specified with 'preserve' to allow for wiki escaping
+  - allow reading from HTML files using "html2wiki( file => ... )"
+  - (bug 12944, 12303) preserve HTML entities in text nodes
+  - (bug 13017) MediaWiki should allow <i> and <b> to be preserved rather than converting to '' and '''
+  - backend API changes; dialect modules now subclass HTML::WikiConverter
+  - dialects specify their attributes using the attributes() method
+  - more complete tests using larger input HTML file
+  - document individual dialects
+  - lots of documentation fixes
 
 version: 0.23
 date:    Sat May 22 02:19:00 PDT 2005
- - add DokuWiki dialect (with thanks to Thomas J. Messenger)
- - (bug 12441) allow dialects to post-process wiki markup
- - (bug 12440) add 'empty' rule for elements with no content
- - (bug 12439) unknown HTML elements no longer ignored
- - (bug 12396) added command line tool bin/html2wiki
- - (bug 12395) MoinMoin: added postprocessing step in MoinMoin dialect to replace "URL[[BR]]" with "URL [[BR]]"
- - (bug 12433) MediaWiki: added complete set of whitelisted tags and attributes from Sanitizer.php
+changes:
+  - add DokuWiki dialect (with thanks to Thomas J. Messenger)
+  - (bug 12441) allow dialects to post-process wiki markup
+  - (bug 12440) add 'empty' rule for elements with no content
+  - (bug 12439) unknown HTML elements no longer ignored
+  - (bug 12396) added command line tool bin/html2wiki
+  - (bug 12395) MoinMoin: added postprocessing step in MoinMoin dialect to replace "URL[[BR]]" with "URL [[BR]]"
+  - (bug 12433) MediaWiki: added complete set of whitelisted tags and attributes from Sanitizer.php
 
 version: 0.22
 date:    Mon Apr 25 09:04:31 PDT 2005
- - (bug 12393) added 'wrap_in_html' option to wrap HTML input in <html> and </html> prior to wiki conversion
- - (bug 12303) MediaWiki: bracketed content is nowiki-escaped if it resembles an external link reference
- - (bug 12438) PmWiki: add <td> whitespace trimming
+changes:
+  - (bug 12393) added 'wrap_in_html' option to wrap HTML input in <html> and </html> prior to wiki conversion
+  - (bug 12303) MediaWiki: bracketed content is nowiki-escaped if it resembles an external link reference
+  - (bug 12438) PmWiki: add <td> whitespace trimming
 
 version: 0.21
 date:    Thu Mar 17 13:36:00 PDT 2005
- - misc. documentation fixes
- - use '' as default return value from base_uri() method
- - add 'wiki_uri' parameter to specify how wiki links are formed
- - add get_attr_str() and get_wiki_page() utility methods
- - rename elem_contents() to get_elem_contents() for consistency
- - added support for PmWiki
- - fix postprocess whitespace trimming bug; only leading newlines and trailing whitespace is trimmed
- - add URI 1.35 requirement (though some earlier versions will probably work)
- - fix whitespace trimming in test suite
- - added new tests
- - Kwiki-specific changes:
-    - add <strike> as alias of <s>
-    - add <caption> preprocessing to convert it into a <p>
-    - update wiki link handling code to use get_wiki_page()
-    - removed markup around CamelCase links
- - MediaWiki-specific changes:
-    - use new get_wiki_page() utility method
-    - no longer passes a full URI to basename(); uses URI->path()
-    - added support for attributes in <table>, <tr>, and <td>
- - MoinMoin-specific changes:
-    - add <caption> preprocessing as in Kwiki
-    - make rules less redundant (use 'alias' rule)
- - PhpWiki-specific changes:
-    - add <caption> preprocessing as in Kwiki
-    - improve support for <dl>
- - UseMod-specific changes:
-    - add <caption> preprocessing as in Kwiki
+changes:
+  - misc. documentation fixes
+  - use '' as default return value from base_uri() method
+  - add 'wiki_uri' parameter to specify how wiki links are formed
+  - add get_attr_str() and get_wiki_page() utility methods
+  - rename elem_contents() to get_elem_contents() for consistency
+  - added support for PmWiki
+  - fix postprocess whitespace trimming bug; only leading newlines and trailing whitespace is trimmed
+  - add URI 1.35 requirement (though some earlier versions will probably work)
+  - fix whitespace trimming in test suite
+  - added new tests
+  - Kwiki-specific changes:
+      - add <strike> as alias of <s>
+      - add <caption> preprocessing to convert it into a <p>
+      - update wiki link handling code to use get_wiki_page()
+      - removed markup around CamelCase links
+  - MediaWiki-specific changes:
+      - use new get_wiki_page() utility method
+      - no longer passes a full URI to basename(); uses URI->path()
+      - added support for attributes in <table>, <tr>, and <td>
+  - MoinMoin-specific changes:
+      - add <caption> preprocessing as in Kwiki
+      - make rules less redundant (use 'alias' rule)
+  - PhpWiki-specific changes:
+      - add <caption> preprocessing as in Kwiki
+      - improve support for <dl>
+  - UseMod-specific changes:
+      - add <caption> preprocessing as in Kwiki
 
 version: 0.20
 date:    Sat Mar 12 00:59:29 PDT 2005
- - complete rewrite, significant API changes
- - added support for Kwiki, MediaWiki, MoinMoin, PhpWiki, and UseMod
+changes:
+  - complete rewrite, significant API changes
+  - added support for Kwiki, MediaWiki, MoinMoin, PhpWiki, and UseMod
 
 version: 0.17
 date:    Wed July 7 12:40:33 PDT 2004
- - update test suite
- - remove warnings reported by cpan testers
- - lots of documentation additions
- - MediaWiki changes:
-    - 'wikify_span' now removes elements intended only for URL expansion (as used by the MonoBook skin)
-    - 'wikify_link' does not wikify anchor tags (i.e. A tags must have an HREF attribute)
-    - bug fix: table heading markup like "! bgcolor=black !" is now properly generated as "! bgcolor=black |"
-    - TH now accepts a colspan and rowspan attribute
-    - "colspan=1" attribute is now stripped from table cells that only span a single column. Likewise for "rowspan"
-    - added "taxo_format" option to help format taxoboxes
-    - align attribute is now preserved in TH and TD
-    - add "add_nowiki" parameter for adding NOWIKI tags around {{messages}}
-    - table caption handling using "|+" wiki table markup
-    - better nested table handling; a newline is now added before the "{|" for nested tables
-    - improved handling of image thumbnails
-    - now uses warnings, strict
+changes:
+  - update test suite
+  - remove warnings reported by cpan testers
+  - lots of documentation additions
+  - MediaWiki changes:
+      - 'wikify_span' now removes elements intended only for URL expansion (as used by the MonoBook skin)
+      - 'wikify_link' does not wikify anchor tags (i.e. A tags must have an HREF attribute)
+      - bug fix: table heading markup like "! bgcolor=black !" is now properly generated as "! bgcolor=black |"
+      - TH now accepts a colspan and rowspan attribute
+      - "colspan=1" attribute is now stripped from table cells that only span a single column. Likewise for "rowspan"
+      - added "taxo_format" option to help format taxoboxes
+      - align attribute is now preserved in TH and TD
+      - add "add_nowiki" parameter for adding NOWIKI tags around {{messages}}
+      - table caption handling using "|+" wiki table markup
+      - better nested table handling; a newline is now added before the "{|" for nested tables
+      - improved handling of image thumbnails
+      - now uses warnings, strict
 
 version: 0.16
 date:    Fri May 28 12:33:14 PDT 2004
- - Added 'elem_style_attr_props' method for parsing the STYLE attribute
- - Tags that are meant to be stripped (e.g. HTML, META, HEAD) no longer need an empty replacement handler (they can simply be excluded from the list of tag handlers)
- - Added handling of non-breaking elements (e.g. in some dialects, such as MediaWiki, P tags should not have any embedded newlines)
- - Fixed whitespace handling in H::W::Dialect
- - Documentation additions
- - Added benchmarking option
- - MediaWiki: added colspan and rowspan to allowed TD attrs
- - MW: Now supports 'pretty_tables' option for making nice borders/shading
- - MW: Removed arbitrary 20-char limit in conversion of {{...}} magic
- - MW: "[1]"-style links are now handled properly
- - MW: Hex codes/HTML entities in URLs now translated to appropriate char (requires URI::Escape)
- - MW: Major list handling cleanup and bug fixes
- - MW: Added new realworld test (my User: page)
+changes:
+  - Added 'elem_style_attr_props' method for parsing the STYLE attribute
+  - Tags that are meant to be stripped (e.g. HTML, META, HEAD) no longer need an empty replacement handler (they can simply be excluded from the list of tag handlers)
+  - Added handling of non-breaking elements (e.g. in some dialects, such as MediaWiki, P tags should not have any embedded newlines)
+  - Fixed whitespace handling in H::W::Dialect
+  - Documentation additions
+  - Added benchmarking option
+  - MediaWiki: added colspan and rowspan to allowed TD attrs
+  - MW: Now supports 'pretty_tables' option for making nice borders/shading
+  - MW: Removed arbitrary 20-char limit in conversion of {{...}} magic
+  - MW: "[1]"-style links are now handled properly
+  - MW: Hex codes/HTML entities in URLs now translated to appropriate char (requires URI::Escape)
+  - MW: Major list handling cleanup and bug fixes
+  - MW: Added new realworld test (my User: page)
 
 version: 0.15
 date:    Thu May 20 8:50:37 PDT 2004
- - Split module into several separate modules
- - HTML::WikiConverter is still the main interface
- - Added support for wiki dialects via HTML::WIkiConverter::Dialect interface
- - Added HTML::WikiConverter::Dialect
- - Added HTML::WikiConverter::Dialect::MediaWiki
- - Added HTML::WikiConverter::Dialect::PhpWiki
- - Added HTML::WikiConverter::Dialect::Kwiki
- - Fixed spacing issues in tidy_whitespace
- - Added container, block, and line element handling
- - Now supports multiply-indented blocks
+changes:
+  - Split module into several separate modules
+  - HTML::WikiConverter is still the main interface
+  - Added support for wiki dialects via HTML::WIkiConverter::Dialect interface
+  - Added HTML::WikiConverter::Dialect
+  - Added HTML::WikiConverter::Dialect::MediaWiki
+  - Added HTML::WikiConverter::Dialect::PhpWiki
+  - Added HTML::WikiConverter::Dialect::Kwiki
+  - Fixed spacing issues in tidy_whitespace
+  - Added container, block, and line element handling
+  - Now supports multiply-indented blocks
 
 version: 0.14
 date:    Sun May 17 7:18:09 PDT 2004
-changes
- - 'wikify_default' now called 'passthru'
- - NOWIKI blocks are no longer preserved
- - Bug fix: Add newline to HTML source before wikification -- avoids apparent bugs in HTML::TreeBuilder that prevent proper tag handling
- - Added trim method
- - Bug fix: Extra whitespace in PRE blocks no longer trimmed
- - Can now handle "[[language]]s" links (with trailing characters)
+changes:
+  - 'wikify_default' now called 'passthru'
+  - NOWIKI blocks are no longer preserved
+  - Bug fix: Add newline to HTML source before wikification -- avoids apparent bugs in HTML::TreeBuilder that prevent proper tag handling
+  - Added trim method
+  - Bug fix: Extra whitespace in PRE blocks no longer trimmed
+  - Can now handle "[[language]]s" links (with trailing characters)
 
 version: 0.12
 date:    Thu May 14 5:23:08 PDT 2004
 changes:
- - Bug fix: removed reference to non-existent 'has_parent' method within '_elem_has_ancestor' function
- - Bug fix: fixed potential bug in 'wikify_list_item' which used $node->parent->tag eq '...' instead of _elem_has_ancestor($node, '...')
- - Now supports definition lists via ; and :
- - Now supports indentation via :
- - Replaced code handler for P tag with flank handler
- - Replaced code handler for OL/UL tags with flank handlers
- - Renamed 'wikify_heading' method to 'wikify_h' for consistency with other wikify_* handlers
- - NOWIKI blocks are now preserved
- - Introduced beginnings of Unicode support with the use of HTML entities to HTML-escape high-bit characters
- - Added more tests to t/test.t
+  - Bug fix: removed reference to non-existent 'has_parent' method within '_elem_has_ancestor' function
+  - Bug fix: fixed potential bug in 'wikify_list_item' which used $node->parent->tag eq '...' instead of _elem_has_ancestor($node, '...')
+  - Now supports definition lists via ; and :
+  - Now supports indentation via :
+  - Replaced code handler for P tag with flank handler
+  - Replaced code handler for OL/UL tags with flank handlers
+  - Renamed 'wikify_heading' method to 'wikify_h' for consistency with other wikify_* handlers
+  - NOWIKI blocks are now preserved
+  - Introduced beginnings of Unicode support with the use of HTML entities to HTML-escape high-bit characters
+  - Added more tests to t/test.t
 
 version: 0.11
 date:    Sun May 10 1:01:09 PDT 2004
 changes:
- - added wikify_default code handler for tags that should be preserved.
- - Added wikify_span
- - Now preserves FONT, SUP, and SUB tags
- - SPAN tags are converted into FONT if possible
+  - added wikify_default code handler for tags that should be preserved.
+  - Added wikify_span
+  - Now preserves FONT, SUP, and SUB tags
+  - SPAN tags are converted into FONT if possible
 
 version: 0.10
 date:    Thu May 07 3:10:04 PDT 2004

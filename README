@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.41
+HTML::WikiConverter version 0.50
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
@@ -32,22 +32,30 @@ There's also a web interface if you're so inclined:
 
 UNICODE SUPPORT
 
-Version 0.40 of HTML::WikiConverter brought support for multiple
-encodings, e.g. Unicode, via the 'encodings' attribute.
+As of version 0.40, HTML::WikiConverter supports multiple character
+encodings via the 'encodings' attribute.
 
-DEPENDENCIES
+PREREQUISITES
 
   * HTML::Tree for building and manipulating HTML trees
   * HTML::Entities for encoding HTML entities
   * URI for handling URIs in links
 
-CHANGES IN VERSION 0.41
+CHANGES IN VERSION 0.50
 
-  * Documentation fixes only; otherwise identical to 0.40
+As of version 0.50, HTML::WikiConverter no longer ships with all its
+wiki dialects. This saves bandwidth, allows me to release more often,
+and otherwise eases maintenance.
+
+The easiest way to install a dialect module is via the CPAN shell. For
+example, to install the MediaWiki and UseMod dialects:
+
+  % cpan HTML::WikiConverter::MediaWiki
+  % cpan HTML::WikiConverter::UseMod
 
 COPYRIGHT
 
-Copyright (c) 2004-2005 David J. Iberri <diberri@cpan.org>
+Copyright (c) 2004-2006 David J. Iberri <diberri@cpan.org>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
