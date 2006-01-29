@@ -1,8 +1,24 @@
-INSTALLATION
+HTML::WikiConverter installation instructions
+=============================================
 
-The easiest way to install HTML::WikiConverter is via the CPAN shell:
+HTML::WikiConverter is an interface to its various dialect modules.
+To install the latest version of HTML::WikiConverter and all of its
+dialects, install Bundle::HTMLWikiConverter from CPAN:
 
-  % cpan HTML::WikiConverter
+  % perl -MCPAN -e 'install Bundle::HTMLWikiConverter'
+
+For just the interface:
+
+  % perl -MCPAN -e 'install HTML::WikiConverter'
+
+Individual dialects can be installed separately, e.g.:
+
+  % perl -MCPAN -e 'install HTML::WikiConverter::MediaWiki'
+  % perl -MCPAN -e 'install HTML::WikiConverter::UseMod'
+  % perl -MCPAN -e 'install HTML::WikiConverter::Oddmuse'
+
+Installing by hand
+==================
 
 You may also obtain the source as a .tar.gz, in which case you can run
 the following after unpacking:

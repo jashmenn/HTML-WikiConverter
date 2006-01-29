@@ -1,9 +1,9 @@
-HTML::WikiConverter version 0.50
+HTML::WikiConverter version 0.51
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
-HTML source into a variety of wiki dialects. It's aimed at folks who are
-converting vanilla HTML websites into wikis.
+HTML source into a variety of wiki dialects. It's aimed at folks who
+are converting vanilla HTML websites into wikis.
 
 The following dialects are supported:
 
@@ -13,6 +13,24 @@ The following dialects are supported:
   PmWiki      SnipSnap
   TikiWiki    UseMod
   WakkaWiki   WikkaWiki
+
+INSTALLATION
+
+As of version 0.50, HTML::WikiConverter is just an interface to
+individual dialect modules; it no longer ships with all its wiki
+dialects. To install the latest version of HTML::WikiConverter and all
+its dialects, install Bundle::HTMLWikiConverter from CPAN:
+
+  % perl -MCPAN -e 'install Bundle::HTMLWikiConverter'
+
+For just the HTML::WikiConverter interface:
+
+  % perl -MCPAN -e 'install HTML::WikiConverter'
+
+Individual dialects can be installed separately; for example:
+
+  % perl -MCPAN -e 'install HTML::WikiConverter::MediaWiki'
+  % perl -MCPAN -e 'install HTML::WikiConverter::PhpWiki'
 
 SYNOPSIS
 
@@ -37,21 +55,25 @@ encodings via the 'encodings' attribute.
 
 PREREQUISITES
 
-  * HTML::Tree for building and manipulating HTML trees
+  * Test::More for testing
+  * HTML::TreeBuilder for building and manipulating HTML trees
   * HTML::Entities for encoding HTML entities
-  * URI for handling URIs in links
+  * URI and URI::Escape for handling URIs in links
 
-CHANGES IN VERSION 0.50
+CHANGES IN VERSION 0.51
 
-As of version 0.50, HTML::WikiConverter no longer ships with all its
-wiki dialects. This saves bandwidth, allows me to release more often,
-and otherwise eases maintenance.
+  * Add available_dialects() class method
+  * Add 'preprocess' attribute so client can preprocess HTML tree
+    before conversion
+  * Allow regexps and multiple URIs in 'wiki_uri' attribute
+  * Add 'wiki_page_extractor' attribute so client can more
+    flexibly (than the 'wiki_uri' attribute) specify how wiki page
+    titles are extracted from URIs
+  * Make prettier URIs with URI::Escape
 
-The easiest way to install a dialect module is via the CPAN shell. For
-example, to install the MediaWiki and UseMod dialects:
+ACKNOWLEDGEMENTS
 
-  % cpan HTML::WikiConverter::MediaWiki
-  % cpan HTML::WikiConverter::UseMod
+Thanks to Tatsuhiko Miyagawa for suggestions and code.
 
 COPYRIGHT
 

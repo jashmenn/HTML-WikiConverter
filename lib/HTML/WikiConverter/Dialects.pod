@@ -44,14 +44,12 @@ MediaWiki dialect are provided in C<HTML::WikiConverter::MediaWiki>,
 while PhpWiki's rules are specified in
 C<HTML::WikiConverter::PhpWiki>.
 
-This section is intended for dialect module authors.
-
 =head2 Conversion rules
 
-To interface with C<HTML::WikiConverter>, dialect modules must define a
-single C<rules> class method. It returns a reference to a hash of
-rules that specify how individual HTML elements are converted to wiki
-markup.
+To interface with C<HTML::WikiConverter>, dialect modules must at a
+minimum define a single C<rules> class method. It returns a reference
+to a hash of rules that specify how individual HTML elements are
+converted to wiki markup.
 
 =head3 Supported rules
 
@@ -101,7 +99,7 @@ C<E<lt>iE<gt>>, use the C<alias> rule:
     };
   }
 
-Note that if you specify the C<alias> rule, no other rules are allowed.
+(The C<alias> rule cannot be used with any other rule.)
 
 =head3 Blocks
 
@@ -142,7 +140,7 @@ use C<"none">.
 =head3 Line prefixes
 
 Some elements require that each line be prefixed with a particular
-string. For example, preformatted text in MediaWiki s prefixed with a
+string. For example, preformatted text in MediaWiki is prefixed with a
 space:
 
   pre => { block => 1, line_prefix => ' ' }
@@ -161,19 +159,21 @@ hence the rule:
 
 =head3 Preserving HTML tags
 
-Some dialects allow a subset of HTML in their markup. HTML tags can be
-preserved using the C<preserve> rule. For example, to allow
-C<E<lt>fontE<gt>> tag in wiki markup:
+Some dialects allow a subset of HTML in their markup. While
+C<HTML::WikiConverter> ignores unknown HTML tags by default, you may
+specify that they are preserved using the C<preserve> rule. For
+example, to allow C<E<lt>fontE<gt>> tag in wiki markup:
 
   font => { preserve => 1 }
 
-Preserved tags may also specify a list of attributes that may also
-passthrough from HTML to wiki markup. This is done with the
-C<attributes> option:
+Preserved tags may also specify a list of attributes that may likewise
+pass-through from HTML to wiki markup. This is done with the
+C<attributes> rule:
 
   font => { preserve => 1, attributes => [ qw/ font size / ] }
 
-(The C<attributes> rule must be used alongside the C<preserve> rule.)
+(The C<attributes> rule can only be used if the C<preserve> rule is
+also present.)
 
 Some HTML elements have no content (e.g. line breaks, images), and
 should be preserved specially. To indicate that a preserved tag should
@@ -192,16 +192,17 @@ C<"E<lt>br clear='both' /E<gt>">. Without specifying the C<empty>
 rule, this would be converted into the undesirable C<"E<lt>br
 clear='both'E<gt>E<lt>/brE<gt>">.
 
-The C<empty> rule must be combined with the C<preserve> rule.
+(The C<empty> rule can only be used if the C<preserve> rule is also
+present.)
 
 =head2 Dynamic rules
 
 Instead of simple strings, you may use coderefs as values for the
 C<start>, C<end>, C<replace>, and C<line_prefix> rules. If you do, the
-code will be called as a method on the current C<HTML::WikiConverter>
-dialect object, and will be passed the current L<HTML::Element> node
-and a hashref of the dialect's rules for processing elements of that
-type.
+code will be called when the rule is applied, and will be passed three
+arguments: the current C<HTML::WikiConverter> instance, the current
+L<HTML::Element> node being operated on, and a hashref of the
+dialect's rules for processing elements of that type.
 
 For example, MoinMoin handles lists like so:
 
@@ -212,7 +213,7 @@ For example, MoinMoin handles lists like so:
 And then defines C<_li_start>:
 
   sub _li_start {
-    my( $self, $rules ) = @_;
+    my( $self, $node, $rules ) = @_;
     my $bullet = '';
     $bullet = '*'  if $node->parent->tag eq 'ul';
     $bullet = '1.' if $node->parent->tag eq 'ol';
@@ -230,7 +231,7 @@ content of the list item.
 Certain rule combinations are not allowed. For example, the C<replace>
 and C<alias> rules cannot be combined with any other rules, and
 C<attributes> can only be specified alongside C<preserve>. Invalid
-rule combinations will trigger an error when the
+rule combinations will trigger a fatal error when the
 C<HTML::WikiConverter> object is instantiated.
 
 =head2 Dialect attributes
@@ -271,7 +272,8 @@ Because they are commonly needed, two preprocessing steps are
 automatically carried out by C<HTML::WikiConverter>, regardless of the
 dialect: 1) relative URIs in images and links are converted to
 absolute URIs (based upon the C<base_uri> parameter), and 2) ignorable
-text (e.g. between C<E<lt>/tdE<gt>> and C<E<lt>tdE<gt>>) is discarded.
+text (e.g. between a C<E<lt>/tdE<gt>> and C<E<lt>tdE<gt>>) is
+discarded.
 
 C<HTML::WikiConverter> also provides additional preprocessing steps
 that may be explicitly enabled by dialect modules.
@@ -304,8 +306,8 @@ example:
 
 Once the work of converting HTML, it is sometimes useful to
 postprocess the resulting wiki markup. Postprocessing can be used to
-clean up whitespace, fix subtle bugs in the markup that can't
-otherwise be done in the original conversion, etc.
+clean up whitespace, fix subtle bugs introduced in the markup during
+conversion, etc.
 
 Dialects that want to postprocess the wiki markup should define a
 C<postprocess_output> object method that will be called just before
@@ -314,12 +316,12 @@ passed a single argument, a reference to the wiki markup. It may
 modify the wiki markup that the reference points to. Its return value
 is discarded.
 
-For example, to convert a series of line breaks to be replaced with
-a pair of newlines, a dialect might implement this:
+For example, to replace a series of line breaks with a pair of
+newlines, a dialect might implement this:
 
   sub postprocess_output {
     my( $self, $outref ) = @_;
-    $$outref =~ s/<br>\s*<br>/\n\n/g;
+    $$outref =~ s/<br>\s*<br>/\n\n/gs;
   }
 
 (This example assumes that HTML line breaks were replaced with
@@ -327,8 +329,8 @@ C<E<lt>brE<gt>> in the wiki markup.)
 
 =head2 Dialect utility methods
 
-C<HTML::WikiConverter> defines a set of utility methods for use by
-dialect modules.
+C<HTML::WikiConverter> defines a set of utility methods that dialect
+modules may find useful.
 
 =over
 
@@ -345,16 +347,17 @@ resulting wiki markup.
 
 Attempts to extract the title of a wiki page from the given URL,
 returning the title on success, C<undef> on failure. If C<wiki_uri> is
-empty, this method always return C<undef>. Assumes that URLs to wiki
-pages are constructed using "I<E<lt>wiki-uriE<gt>E<lt>page-nameE<gt>>".
+empty, this method always return C<undef>. It assumes that URLs to
+wiki pages are constructed using
+"I<E<lt>wiki-uriE<gt>E<lt>page-nameE<gt>>".
 
 =item is_camel_case
 
   my $ok = $wc->is_camel_case( $str );
 
 Returns true if C<$str> is in CamelCase, false
-otherwise. CamelCase-ness is determined using the same rules as
-L<CGI::Kwiki>'s formatting module uses.
+otherwise. CamelCase-ness is determined using the same rules that
+L<Kwiki>'s formatting module uses.
 
 =item get_attr_str
 
@@ -377,11 +380,11 @@ David J. Iberri <diberri@cpan.org>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2004-2005 David J. Iberri
+=head1 COPYRIGHT & LICENSE
 
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
+Copyright 2006 David J. Iberri, all rights reserved.
 
-See http://www.perl.com/perl/misc/Artistic.html
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
 
 =cut

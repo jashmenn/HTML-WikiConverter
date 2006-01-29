@@ -4,12 +4,14 @@ use strict;
 
 use HTML::WikiConverter;
 use Getopt::Long;
+use Pod::Usage;
 
 my $dialect = '';
 my $base_uri = '';
 my $wiki_uri = '';
 my $wrap_in_html = undef;
 my $encoding = undef;
+my $help = undef;
 
 GetOptions(
   'dialect=s'     => \$dialect,
@@ -17,10 +19,11 @@ GetOptions(
   'wiki-uri=s'    => \$wiki_uri,
   'wrap-in-html!' => \$wrap_in_html,
   'encoding:s'    => \$encoding,
-);
+  'help'          => sub { pod2usage(1) },
+) or pod2usage(2);
 
 $dialect ||= $ENV{WCDIALECT};
-die usage() unless $dialect;
+pod2usage(2) unless $dialect;
 
 my $wc = new HTML::WikiConverter(
   dialect => $dialect,
@@ -32,20 +35,83 @@ my $wc = new HTML::WikiConverter(
 
 local $/;
 my $html = <>;
-
 print $wc->html2wiki($html), "\n";
 
-sub usage { return <<EOF;
-Usage: html2wiki [--dialect <dialect>] [options] [<html-file>]
+__END__
+
+=head1 NAME
+
+html2wiki - convert HTML into wiki markup
+
+=head1 SYNOPSIS
+
+html2wiki [options] [file]
 
 Options:
-  --base-uri      Base URI for relative links
-  --wiki-uri      URI fragment for wiki links
-  --wrap-in-html  Wrap input in <html> and </html> (default is 0)
-  --encoding      Encoding of input text (default is 'utf-8')
 
-The --dialect option is required unless the WCDIALECT environment
-variable is set to a dialect. Consult the HTML::WikiConverter manpage
-for available dialects.
-EOF
-}
+    --dialect=dialect    Dialect name, e.g. "MediaWiki" (required unless
+                         the WCDIALECT environment variable is used)
+
+    --encoding=encoding  Source encoding (default is 'utf-8')
+    --base-uri=uri       Base URI for relative links (optional)
+    --wiki-uri=uri       URI fragment for wiki links (optional)
+    --no-wrap-in-html    Don't wrap input in <html> and </html> (default is to wrap)
+
+    --help               Show this message
+
+Example:
+
+    html2wiki --dialect MediaWiki --encoding iso-8859-1 \
+        --base-uri http://en.wikipedia.org/wiki/ \
+        --wiki-uri http://en.wikipedia.org/wiki/ \
+        input.html > output.wiki
+
+=head1 DESCRIPTION
+
+C<html2wiki> is a command-line interface to L<HTML::WikiConverter>,
+which it uses to convert HTML to wiki markup.
+
+=head1 DIALECTS
+
+Consult L<HTML::WikiConverter> for a list of known dialects that may
+be given in C<--dialect>. Note that if the dialect given in
+C<--dialect> is not installed on your system (e.g. if you specify
+C<MediaWiki> but have not installed its dialect module,
+L<HTML::WikiConverter::MediaWiki>) a fatal error will be issued.
+
+=head1 INPUT/OUTPUT
+
+Input is accepted on STDIN, so you may pipe the output from another
+program into C<html2wiki>. For example:
+
+  curl http://example.com/input.html | html2wiki --dialect MediaWiki
+
+You may also specify a file to read HTML from:
+
+  html2wiki --dialect MediaWiki input.html
+
+Output is sent to STDOUT, though you may redirect it on the command
+line:
+
+   html2wiki --dialect MediaWiki input.html > output.wiki
+
+Or you may pipe it into another program:
+
+   html2wiki --dialect MediaWiki input.html | less
+
+=head1 AUTHOR
+
+David J. Iberri, C<< <diberri@cpan.org> >>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2006 David J. Iberri, all rights reserved.
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=head1 SEE ALSO
+
+L<HTML::WikiConverter>
+
+=cut

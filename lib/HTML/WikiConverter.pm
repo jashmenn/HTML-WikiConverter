@@ -4,10 +4,13 @@ use strict;
 
 use URI;
 use Encode;
+use DirHandle;
+use File::Spec;
 use HTML::Entities;
 use HTML::TreeBuilder;
+use URI::Escape;
 
-our $VERSION = '0.50';
+our $VERSION = '0.51';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -65,7 +68,7 @@ sub new {
     die "Required 'dialect' parameter is missing" unless $opts{dialect};
     my $dc = __PACKAGE__.'::'.$opts{dialect};
 
-    die "Dialect '$opts{dialect}' could not be loaded. Perhaps $dc isn't installed? Error: $@" unless eval "use $dc; 1";
+    die "Dialect '$opts{dialect}' could not be loaded. Perhaps $dc isn't installed? Error: $@" unless eval "use $dc; 1" or $dc->isa($pkg);
     return $dc->new(%opts);
   }
 
@@ -96,6 +99,8 @@ sub attributes { (
   strip_head     => 1,      # Strip head element
   strip_scripts  => 1,      # Strip script elements
   encoding       => 'utf8', # Input encoding
+  preprocess     => undef,  # Client callback to preprocess tree before converting
+  wiki_page_extractor => undef, # Coderef to use for extracting wiki page titles from URIs
 ) }
 
 sub __root { shift->__param( __root => @_ ) }
@@ -244,8 +249,11 @@ sub __wikify {
     $output = $self->__subst($rules->{start}, $node, $rules).$output if $rules->{start};
     $output = $output.$self->__subst($rules->{end}, $node, $rules) if $rules->{end};
     
-    # Nested block elements are not blocked
+    # Nested block elements are not blocked...
     $output = "\n\n$output\n\n" if $rules->{block} && ! $node->parent->look_up( _tag => $node->tag );
+
+    # ...but they are put on their own line
+    $output = "\n$output" if $rules->{block} and $node->parent->look_up( _tag => $node->tag ) and $trim ne 'none';
     
     return $output;
   }
@@ -289,6 +297,8 @@ sub __preprocess_tree {
 
   # Reobjectify in case preprocessing added new text
   $self->__root->objectify_text();
+
+  $self->preprocess->( $self->__root ) if ref $self->preprocess;
 }
 
 sub __rm_node { pop->replace_with('')->delete() }
@@ -306,7 +316,7 @@ sub __rel2abs {
   my( $self, $node ) = @_;
   my $attr = $rel2abs{$node->tag};
   return unless $node->attr($attr); # don't add attribute if it's not already there
-  $node->attr( $attr => URI->new($node->attr($attr))->abs($self->base_uri)->as_string );
+  $node->attr( $attr => uri_unescape( URI->new_abs( $node->attr($attr), $self->base_uri )->as_string ) );
 }
 
 # Removes text nodes directly inside container elements.
@@ -395,17 +405,35 @@ sub __rule_error {
 
 sub get_elem_contents {
   my( $self, $node ) = @_;
-  my $output = '';
-  $output .= $self->__wikify($_) for $node->content_list;
-  return $output;
+  return join '', map $self->__wikify($_), $node->content_list;
 }
 
 sub get_wiki_page {
   my( $self, $url ) = @_;
-  return undef unless $self->wiki_uri;
-  return undef unless index( $url, $self->wiki_uri ) == 0;
-  return undef unless length $url > length $self->wiki_uri;
-  return substr( $url, length $self->wiki_uri );
+  my $page = $self->wiki_page_extractor->( $self, URI->new_abs( $url, $self->base_uri ) ) if $self->wiki_page_extractor;
+  return $page if $page;
+  return $self->_extract_wiki_page( $url );
+}
+
+sub _extract_wiki_page {
+  my( $self, $url ) = @_;
+
+  my @wiki_uris = ref $self->wiki_uri eq 'ARRAY' ? @{$self->wiki_uri} : $self->wiki_uri;
+  foreach my $wiki_uri ( @wiki_uris ) {
+    my $page = $self->__simply_extract_wiki_page( $url => $wiki_uri );
+    return $page if $page;
+  }
+
+  return undef;
+}
+
+sub __simply_extract_wiki_page {
+  my( $self, $url, $wiki_uri ) = @_;
+  return undef unless $wiki_uri;
+  return $1 if ref $wiki_uri eq 'Regexp' and $url =~ $wiki_uri;
+  return undef unless index( $url, $wiki_uri ) == 0;
+  return undef unless length $url > length $wiki_uri;
+  return substr( $url, length $wiki_uri );
 }
 
 # Adapted from Kwiki source
@@ -426,19 +454,37 @@ sub get_attr_str {
 
   my $html = $wc->parsed_html;
 
-Returns L<HTML::TreeBuilder>'s representation of the last-parsed
-syntax tree, showing how the input HTML was parsed internally. This is
-often useful for debugging.
-
-=head2 dialect
-
-  my $dialect = $wc->dialect;
-
-Returns the dialect passed to C<new>.
+Returns L<HTML::TreeBuilder>'s string representation of the
+last-parsed syntax tree, showing how the input HTML was parsed
+internally. Useful for debugging.
 
 =cut
 
 sub parsed_html { shift->__param( __parsed_html => @_ ) }
+
+=head2 available_dialects
+
+  my @dialects = HTML::WikiConverter->available_dialects;
+
+Returns a list of all available dialects by searching the directories
+in C<@INC> for C<HTML::WikiConverter::> modules.
+
+=cut
+
+sub available_dialects {
+  my @dialects;
+
+  for my $inc ( @INC ) {
+    my $dir = File::Spec->catfile( $inc, 'HTML', 'WikiConverter' );
+    my $dh  = DirHandle->new( $dir ) or next;
+    while ( my $f = $dh->read ) {
+      next unless $f =~ /^(\w+)\.pm$/;
+      push @dialects, $1;
+    }
+  }
+
+  return wantarray ? sort @dialects : @dialects;
+}
 
 =head1 ATTRIBUTES
 
@@ -452,7 +498,9 @@ below. Consult individual dialect documentation for details.
 
 =head2 dialect
 
-B<Required.> Dialect to use when converting 
+(Required) Dialect to use for converting HTML into wiki markup. See
+the L</"DESCRIPTION"> section above for a list of dialects. C<new>
+will fail if the dialect given is not installed on your system.
 
 =head2 base_uri
 
@@ -466,11 +514,48 @@ present. Defaults to C<undef>.
 
 =head2 wiki_uri
 
-URI used in determining which links are wiki links. This assumes that
-URLs to wiki pages are created by joining the C<wiki_uri> with the
-(possibly escaped) wiki page name. For example, the English Wikipedia
-would use C<"http://en.wikipedia.org/wiki/">, while Ward's wiki would
-use C<"http://c2.com/cgi/wiki?">. Defaults to C<undef>.
+URI or a reference to a list of URIs used in determining which links
+are wiki links. This assumes that URLs to wiki pages are created by
+joining the C<wiki_uri> with the (possibly escaped) wiki page
+name. For example, the English Wikipedia might use
+
+  my $wc = new HTML::WikiConverter(
+    dialect => $dialect,
+    wiki_uri => [
+      'http://en.wikipedia.org/wiki/',
+      'http://en.wikipedia.org/w/index.php?action=edit&title='
+    ]
+  );
+
+Ward's wiki might use
+
+  my $wc = new HTML::WikiConverter(
+    dialect => $dialect,
+    wiki_uri => 'http://c2.com/cgi/wiki?'
+  );
+
+The default is C<undef>, meaning that all links will be treated as
+external links.
+
+See also the C<wiki_page_extractor> method, which provides a more
+flexible way of specifying how to extract page titles from URLs.
+
+=head2 wiki_page_extractor
+
+C<wiki_page_extractor> can be used instead of C<wiki_uri>, giving you
+a more flexible way to extract page titles from URLs.
+
+The attribute takes a coderef that extracts a wiki page title from the
+given URL.  If C<undef> (the default), the built-in extractor (which
+attempts to extract wiki page titles from URIs based on the value of
+the C<wiki_uri> attribute) will be used instead.
+
+The extractor subroutine will be passed two arguments, the current
+L<HTML::WikiConverter> object and a L<URI> object. The return value
+should be the title of the wiki page extracted from the URI given. If
+no page title can be found or the URI does not refer to a wiki page,
+then the extractor should return C<undef>, which will fallback to the
+built-in extractor (which functions as mentioned previously).
 
 =head2 wrap_in_html
 
@@ -508,11 +593,11 @@ get a spare moment.
 
 =head1 SEE ALSO
 
-L<HTML::Tree>, L<HTML::Element>
+L<HTML::TreeBuilder>, L<HTML::Element>
 
 =head1 AUTHOR
 
-David J. Iberri, C<< <diberri at cpan.org> >>
+David J. Iberri, C<< <diberri@cpan.org> >>
 
 =head1 BUGS
 
@@ -551,6 +636,10 @@ L<http://search.cpan.org/dist/HTML-WikiConverter>
 =back
 
 =head1 ACKNOWLEDGEMENTS
+
+Thanks to Tatsuhiko Miyagawa for suggesting
+L<Bundle::HTMLWikiConverter> as well as providing code for the
+C<available_dialects()> class method.
 
 =head1 COPYRIGHT & LICENSE
 

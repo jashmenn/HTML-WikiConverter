@@ -1,7 +1,27 @@
 # Change log for HTML::WikiConverter
 
+version: 0.51
+date:    Sun Jan 29 01:43:00 EST 2006
+changes:
+  - add available_dialects() method, with thanks to Tatsuhiko Miyagawa
+    for the code and suggestions
+  - add 'preprocess' attribute, which accepts a callback to allow
+    client to alter HTML tree prior to html2wiki conversion
+  - improve handling of nested block elements to simplify dialect
+    rules
+  - allow 'wiki_uri' to contain arrayref of wiki URIs, allowing things
+    like 'http://en.wikipedia.org/wiki/' and
+    'http://en.wikipedia.org/w/index.php?action=edit&title=' to be
+    specified simultaneously
+  - allow wiki URIs in 'wiki_uri' attribute to be either a string (as before)
+    or a regexp, the latter capturing the wiki page title in parentheses
+  - add 'wiki_page_extractor' attribute, which accepts a callback that
+    extracts a wiki page title given a URI object (see bug #17330)
+  - unescape URIs using URI::Escape so that e.g. "%3A" appears as ":"
+    in URIs
+
 version: 0.50
-date:    Tue Jan 10 2006
+date:    Tue Jan 10 17:35 EST 2006
 changes:
   - separate each dialect into is own CPAN package for maintainability
 
