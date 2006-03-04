@@ -19,6 +19,7 @@ GetOptions(
   'wiki-uri=s'    => \$wiki_uri,
   'wrap-in-html!' => \$wrap_in_html,
   'encoding:s'    => \$encoding,
+  'list'          => sub { print "Installed dialects:\n"; print map "  $_\n", HTML::WikiConverter->available_dialects; exit(1); },
   'help'          => sub { pod2usage(1) },
 ) or pod2usage(2);
 
@@ -33,8 +34,7 @@ my $wc = new HTML::WikiConverter(
   encoding => $encoding,
 );
 
-local $/;
-my $html = <>;
+my $html = do { local $/; <> };
 print $wc->html2wiki($html), "\n";
 
 __END__
@@ -57,7 +57,8 @@ Options:
     --wiki-uri=uri       URI fragment for wiki links (optional)
     --no-wrap-in-html    Don't wrap input in <html> and </html> (default is to wrap)
 
-    --help               Show this message
+    --list               List installed dialects and exit
+    --help               Show this message and exit
 
 Example:
 
@@ -73,15 +74,15 @@ which it uses to convert HTML to wiki markup.
 
 =head1 DIALECTS
 
-Consult L<HTML::WikiConverter> for a list of known dialects that may
-be given in C<--dialect>. Note that if the dialect given in
-C<--dialect> is not installed on your system (e.g. if you specify
-C<MediaWiki> but have not installed its dialect module,
-L<HTML::WikiConverter::MediaWiki>) a fatal error will be issued.
+If the dialect you provide in C<--dialect> is not installed on your
+system (e.g. if you specify C<MediaWiki> but have not installed its
+dialect module, L<HTML::WikiConverter::MediaWiki>) a fatal error will
+be issued. Use C<html2wiki --list> to list all available dialects on
+your system. Additional dialects may be downloaded from the CPAN.
 
 =head1 INPUT/OUTPUT
 
-Input is accepted on STDIN, so you may pipe the output from another
+Input is taken from STDIN, so you may pipe the output from another
 program into C<html2wiki>. For example:
 
   curl http://example.com/input.html | html2wiki --dialect MediaWiki

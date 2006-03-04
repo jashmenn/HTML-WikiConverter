@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.51
+HTML::WikiConverter version 0.52
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
@@ -59,21 +59,36 @@ PREREQUISITES
   * HTML::TreeBuilder for building and manipulating HTML trees
   * HTML::Entities for encoding HTML entities
   * URI and URI::Escape for handling URIs in links
+  * Class::Data::Inheritable
+  * Params::Validate
+  * Exporter
 
-CHANGES IN VERSION 0.51
+CHANGES IN VERSION 0.52
 
-  * Add available_dialects() class method
-  * Add 'preprocess' attribute so client can preprocess HTML tree
-    before conversion
-  * Allow regexps and multiple URIs in 'wiki_uri' attribute
-  * Add 'wiki_page_extractor' attribute so client can more
-    flexibly (than the 'wiki_uri' attribute) specify how wiki page
-    titles are extracted from URIs
-  * Make prettier URIs with URI::Escape
+  * Consolidate 'wiki_page_extractor' attribute into 'wiki_uri'
+  * Use File::Slurp (if available) for file slurping
+  * 'wrap_in_html' now applies to html read from files too
+  * Fix bug in how 'wrap_in_html' is applied to html (previously it
+    was clobbering HTML read from files)
+  * Coalesce 'strip_*' into 'strip_tags' attribute, which accepts an
+    arrayref
+  * Document the 'preprocess' attribute
+  * Add attribute() and rule() methods for greater flexibility when
+    defining attributes and rules (hence new Params::Validate and
+    Class::Data::Inheritable prereqs); old style using attributes()
+    and rules() will be supported until 0.60
+  * Dialects can now inherit from H::WC via 'use HTML::WikiConverter
+    -dialect' (old style will be supported until 0.60)
+  * Dialects no longer have to be within the HTML::WikiConverter
+    namespace
 
-ACKNOWLEDGEMENTS
+THANKS TO
 
-Thanks to Tatsuhiko Miyagawa for suggestions and code.
+  * Tatsuhiko Miyagawa for suggestions and code
+  * Dave Schaefer for the (forthcoming) PbWiki dialect and the idea behind the
+    attribute() method
+  * Martin Kudlvasr for fixing a bug in how 'wrap_in_html' was applied to
+    HTML read from files
 
 COPYRIGHT
 

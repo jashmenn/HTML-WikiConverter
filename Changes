@@ -1,5 +1,28 @@
 # Change log for HTML::WikiConverter
 
+version: 0.52
+date:    Fri Mar 03 23:45:00 EST 2006
+changes:
+  - document the 'preprocess' attribute
+  - remove 'wiki_page_extractor' attribute
+  - allow 'wiki_uri' to contain coderefs that were previously used for
+    the now-defunct 'wiki_page_extractor' attribute
+  - use File::Slurp (if available) for file slurping
+  - 'wrap_in_html' now applies to html read from files too
+  - fix bug in how 'wrap_in_html' is applied to files (previously it
+    was clobbering html read from files)
+  - add attribute() function/class method for greater flexibility when
+    defining attribs (hence new Params::Validate and
+    Class::Data::Inheritable prereqs)
+  - coalesce 'strip_*' into 'strip_tags' attribute, which accepts an
+    arrayref
+  - fix bug in __param() that caused Boolean attributes to return an
+    empty string when they were set to a false value
+  - dialects now inherit via 'use HTML::WikiConverter -dialect;'
+  - dialects no longer have to be within the H::WC namespace
+  - rename __param() to _attr() and document its intended use by
+    dialect modules
+
 version: 0.51
 date:    Sun Jan 29 01:43:00 EST 2006
 changes:
