@@ -1,9 +1,14 @@
 HTML::WikiConverter installation instructions
 =============================================
 
-HTML::WikiConverter is an interface to its various dialect modules.
-To install the latest version of HTML::WikiConverter and all of its
-dialects, install Bundle::HTMLWikiConverter from CPAN:
+HTML::WikiConverter is an HTML to wiki converter capable of converting
+HTML source into a variety of wiki dialects. It's aimed at folks who
+are converting vanilla HTML websites into wikis.
+
+The HTML::WikiConverter module itself is an interface to its various
+dialect modules (e.g. HTML::WikiConverter::MediaWiki). To install the
+latest version of HTML::WikiConverter and all of its dialects, install
+Bundle::HTMLWikiConverter from CPAN:
 
   % perl -MCPAN -e 'install Bundle::HTMLWikiConverter'
 

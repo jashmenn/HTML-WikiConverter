@@ -10,7 +10,7 @@ my $dialect = '';
 my $base_uri = '';
 my $wiki_uri = '';
 my $wrap_in_html = undef;
-my $encoding = undef;
+my $encoding = 'utf-8';
 my $help = undef;
 
 GetOptions(

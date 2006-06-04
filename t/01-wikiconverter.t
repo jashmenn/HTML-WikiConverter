@@ -1,21 +1,23 @@
 #!perl -T
 
 package HTML::WikiConverter::MyPerfectWiki;
-use HTML::WikiConverter -dialect;
+use base 'HTML::WikiConverter';
 
-rule b => { start => '**', end => '**' };
-rule i => { start => '//', end => '//' };
-rule a => { replace => \&_a };
-rule blockquote => { trim => 'both', block => 1, line_format => 'multi', line_prefix => '>' };
-rule strong => { alias => 'b' };
-rule em => { alias => 'i' };
-rule img => { replace => \&_img };
+sub rules { {
+  b => { start => '**', end => '**' },
+  i => { start => '//', end => '//' },
+  a => { replace => \&_a },
+  blockquote => { trim => 'both', block => 1, line_format => 'multi', line_prefix => '>' },
+  strong => { alias => 'b' },
+  em => { alias => 'i' },
+  img => { replace => \&_img },
+  funny => { start => '~~', end => '~~' },
+} }
 
-attribute allow_html => { default => 0 };
-
-# API tests for backwards-compatibility with 0.51; will be removed in 0.60
-sub rules { { funny => { start => '~~', end => '~~' } } }
-sub attributes { be_cool => 1 }
+sub attributes { {
+  allow_html => { default => 0 },
+  be_cool => { default => 1 }
+} }
 
 sub _a {
   my( $self, $node, $rules ) = @_;
@@ -39,17 +41,24 @@ sub _img {
 }
 
 package MySlimWiki;
-use HTML::WikiConverter -dialect;
+use base 'HTML::WikiConverter';
 
-rule b => { start => '**', end => '**' };
-rule i => { start => '//', end => '//' };
+sub rules { {
+  b => { start => '**', end => '**' },
+  i => { start => '//', end => '//' },
+  strong => { alias => 'b' },
+  em => { alias => 'i' },
+  span => { preserve => 1 },
+} }
 
-attribute strip_tags => { default => [ qw/ strong em / ] };
-attribute slim_attr => { default => 1 };
+sub attributes { {
+  strip_tags => { default => [ qw/ strong em / ] },
+  slim_attr => { default => 1 },
+} }
 
 package main;
 
-use Test::More tests => 20;
+use Test::More tests => 30;
 use HTML::WikiConverter;
 use URI::QueryParam;
 
@@ -102,6 +111,27 @@ my $wc3 = new HTML::WikiConverter( dialect => 'MySlimWiki' );
 is_deeply( $wc3->strip_tags, ['strong','em'], 'attr w/ ref (pt 1)' );
 is_deeply( $wc->strip_tags, ['~comment','head','script','style'], 'attr w/ ref (pt 2)' );
 
-eval { $wc->slim_attr };
-ok( $@, 'non-overlapping attribute' );
+is( $wc->html2wiki( strip_tags => [], html => '<!--comment-->'), '<!--comment-->', "don't strip" );
+is_deeply( $wc->strip_tags, ['~comment','head','script','style'], "attrs revert after html2wiki()" );
 
+eval { $wc->slim_attr };
+ok( $@, 'attributes do not overlap' );
+
+#
+# Test attribute assignment
+#
+
+my $wc4 = new HTML::WikiConverter( dialect => 'MySlimWiki', remove_empty => 1 );
+is( $wc4->remove_empty, 1, 'set attribute via new()' );
+
+$wc4->remove_empty(0);
+is( $wc4->remove_empty, 0, 'set attribute via object method' );
+
+$wc4->remove_empty(1); # revert
+is( $wc4->html2wiki( '<span></span><b>t</b>' ), '**t**', 'attribute set via object method is used in html2wiki()' );
+is( $wc4->html2wiki( '<span></span><b>t</b>', remove_empty => 0 ), '<span></span>**t**', 'attribute set in html2wiki() overrides default' );
+is( $wc4->remove_empty, 1, 'attribute set via html2wiki() only lasts for the duration of the call' );
+
+is( $wc4->html2wiki('<em>e</em>'), '', 'attribute set via new() has original value' );
+is( $wc4->html2wiki('<em>e</em>', strip_tags => ['strong'] ), '//e//', 'assign ref to attr inside html2wiki()' );
+is( $wc4->html2wiki('<em>e</em>'), '', 'ref attr returns to original value after call to html2wiki()' );

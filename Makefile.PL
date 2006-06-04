@@ -16,6 +16,7 @@ WriteMakefile(
         'URI'            => 1.35,
         'URI::Escape'    => 0,
         'HTML::Entities' => 1.27,
+        'HTML::Tagset'   => 3.04,
         'Params::Validate' => 0.77,
         'Class::Data::Inheritable' => 0.02,
         'Exporter' => 0,

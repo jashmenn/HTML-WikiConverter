@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.52
+HTML::WikiConverter version 0.53
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
@@ -7,19 +7,26 @@ are converting vanilla HTML websites into wikis.
 
 The following dialects are supported:
 
-  DokuWiki    Kwiki
-  MediaWiki   MoinMoin
-  Oddmuse     PhpWiki
-  PmWiki      SnipSnap
-  TikiWiki    UseMod
-  WakkaWiki   WikkaWiki
+  DokuWiki
+  Kwiki
+  MediaWiki
+  MoinMoin
+  Oddmuse
+  PbWiki
+  PhpWiki
+  PmWiki
+  SnipSnap
+  TikiWiki
+  UseMod
+  WakkaWiki
+  WikkaWiki
 
 INSTALLATION
 
-As of version 0.50, HTML::WikiConverter is just an interface to
-individual dialect modules; it no longer ships with all its wiki
-dialects. To install the latest version of HTML::WikiConverter and all
-its dialects, install Bundle::HTMLWikiConverter from CPAN:
+The HTML::WikiConverter module is just an interface; to actually
+perform HTML-to-wiki conversion, you can either install individual
+dialect modules (see below) or install Bundle::HTMLWikiConverter to
+get all of the dialect modules in one shot:
 
   % perl -MCPAN -e 'install Bundle::HTMLWikiConverter'
 
@@ -40,7 +47,7 @@ Converting HTML to wiki markup is easy:
   my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
   print $wc->html2wiki( $html );
 
-Or via the command-line with the included utility:
+The included html2wiki utility converts on the command line:
 
   % html2wiki --dialect MediaWiki input.html > output.mw
 
@@ -59,34 +66,18 @@ PREREQUISITES
   * HTML::TreeBuilder for building and manipulating HTML trees
   * HTML::Entities for encoding HTML entities
   * URI and URI::Escape for handling URIs in links
-  * Class::Data::Inheritable
-  * Params::Validate
-  * Exporter
+  * Class::Data::Inheritable, Params::Validate, and Exporter
+    for the HTML::WikiConverter API and internals
 
-CHANGES IN VERSION 0.52
+CHANGES IN VERSION 0.53
 
-  * Consolidate 'wiki_page_extractor' attribute into 'wiki_uri'
-  * Use File::Slurp (if available) for file slurping
-  * 'wrap_in_html' now applies to html read from files too
-  * Fix bug in how 'wrap_in_html' is applied to html (previously it
-    was clobbering HTML read from files)
-  * Coalesce 'strip_*' into 'strip_tags' attribute, which accepts an
-    arrayref
-  * Document the 'preprocess' attribute
-  * Add attribute() and rule() methods for greater flexibility when
-    defining attributes and rules (hence new Params::Validate and
-    Class::Data::Inheritable prereqs); old style using attributes()
-    and rules() will be supported until 0.60
-  * Dialects can now inherit from H::WC via 'use HTML::WikiConverter
-    -dialect' (old style will be supported until 0.60)
-  * Dialects no longer have to be within the HTML::WikiConverter
-    namespace
+  * Documentation tweaks
 
 THANKS TO
 
   * Tatsuhiko Miyagawa for suggestions and code
-  * Dave Schaefer for the (forthcoming) PbWiki dialect and the idea behind the
-    attribute() method
+  * Dave Schaefer for the PbWiki dialect and for the idea behind the
+    new C<attributes()> implementation.
   * Martin Kudlvasr for fixing a bug in how 'wrap_in_html' was applied to
     HTML read from files
 

@@ -1,5 +1,15 @@
 # Change log for HTML::WikiConverter
 
+version: 0.53
+date:    ??
+changes:
+  - revert "dialects now inherit via 'use HTML::WikiConverter -dialect;'" change
+  - lots of documentation tweaks
+  - allow attributes in html2wiki()
+  - add 'remove_empty' attribute (requires HTML::Tagset)
+  - add 'slurp' attribute (previously it was just an html2wiki() arg)
+  - add eof() call after parse()
+
 version: 0.52
 date:    Fri Mar 03 23:45:00 EST 2006
 changes:

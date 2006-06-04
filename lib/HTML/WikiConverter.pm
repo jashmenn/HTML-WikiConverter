@@ -2,38 +2,19 @@ package HTML::WikiConverter;
 use warnings;
 use strict;
 
-use URI;
-use Encode;
-use DirHandle;
-use File::Spec;
-use HTML::Entities;
-use HTML::TreeBuilder;
-use URI::Escape;
-
-use base 'Class::Data::Inheritable';
 use Params::Validate ':all';
+use HTML::TreeBuilder;
+use HTML::Entities;
+use HTML::Tagset;
+use File::Spec;
+use DirHandle;
+use Encode;
 
-use base 'Exporter';
-our @EXPORT_OK = qw/ attribute rule /;
+use URI::Escape;
+use URI;
 
-our $VERSION = '0.52';
+our $VERSION = '0.53';
 our $AUTOLOAD;
-
-__PACKAGE__->mk_classdata( __rules => {} );
-__PACKAGE__->mk_classdata( __attributes_spec => {} );
-
-sub import {
-  no strict 'refs';
-
-  my( $self_pkg, @args ) = @_;
-  my %args = map { $_ => 1 } @args;
-
-  if( $args{-dialect} ) {
-    my $caller_pkg = caller();
-    push @{"$caller_pkg\::ISA"}, $self_pkg;
-    __PACKAGE__->export_to_level( 1, $self_pkg, @EXPORT_OK );
-  }
-}
 
 =head1 NAME
 
@@ -56,6 +37,7 @@ dialects are supported:
   MediaWiki
   MoinMoin
   Oddmuse
+  PbWiki
   PhpWiki
   PmWiki
   SlipSlap
@@ -88,9 +70,8 @@ sub new {
   return $pkg->__new_dialect(@_) if $pkg eq __PACKAGE__;
 
   my $self = bless { }, $pkg;
-  $self->__validate_attributes(@_);
-  $self->_init();
-  $self->__validate_rules();
+  $self->__load_attribute_specs();
+  $self->__setup(@_);
   return $self;
 }
 
@@ -104,21 +85,33 @@ sub __new_dialect {
   die "Dialect '$opts{dialect}' could not be loaded (tried @dialect_classes). Error: $@";
 }
 
-sub _init { }
+sub __setup {
+  my $self = shift;
+  $self->__attrs( {} );
+  $self->__validate_attributes(@_);
+  $self->__load_rules();
+  $self->__validate_rules();
+}
 
-sub __root { shift->_attr( __root => @_ ) }
+sub __original_attrs { shift->_attr( { internal => 1 }, __original_attrs => @_ ) }
+sub __attrs { shift->_attr( { internal => 1 }, __attrs => @_ ) }
+sub __root { shift->_attr( { internal => 1 }, __root => @_ ) }
+sub __rules { shift->_attr( { internal => 1 }, __rules => @_ ) }
+sub __attribute_specs { shift->_attr( { internal => 1 }, __attribute_specs => @_ ) }
 
+# Pass '{internal=>1}' as first arg for params that aren't attributes
 sub _attr {
-  my( $self, $param, $value ) = @_;
-  $self->{$param} = $value if defined $value;
-  return defined $self->{$param} ? $self->{$param} : '';
+  my( $self, $opts, $param, $value ) = ref $_[1] eq 'HASH' ? @_ : ( +shift, {}, @_ );
+  my $store = $opts->{internal} ? $self : $self->__attrs;
+  $store->{$param} = $value if defined $value;
+  return defined $store->{$param} ? $store->{$param} : '';
 }
 
 # Attribute accessors and mutators
 sub AUTOLOAD {
   my $self = shift;
   ( my $attr = $AUTOLOAD ) =~ s/.*://;
-  return $self->_attr( $attr => @_ ) if exists $self->__attributes_spec->{$attr};
+  return $self->_attr( $attr => @_ ) if exists $self->__attribute_specs->{$attr};
   die "Can't locate method '$attr' in package ".ref($self);
 }
 
@@ -142,33 +135,32 @@ sub __simple_slurp {
 
 =head2 html2wiki
 
-  $wiki = $wc->html2wiki( $html );
-  $wiki = $wc->html2wiki( html => $html );
-  $wiki = $wc->html2wiki( file => $file );
-  $wiki = $wc->html2wiki( file => $file, slurp => $slurp );
+  $wiki = $wc->html2wiki( $html, %attrs );
+  $wiki = $wc->html2wiki( html => $html, %attrs );
+  $wiki = $wc->html2wiki( file => $file, %attrs );
 
 Converts HTML source to wiki markup for the current dialect. Accepts
 either an HTML string C<$html> or an HTML file C<$file> to read from.
 
-You may optionally bypass C<HTML::Parser>'s incremental parsing of
-HTML files (thus I<slurping> the file in all at once) by giving
-C<$slurp> a true value. If L<File::Slurp> is installed, its
-C<read_file()> function will be used to perform slurping; otherwise, a
-common Perl idiom will be used to slurp the file.
+Attributes assigned in C<%attrs> (see L</"ATTRIBUTES">) will override
+previously assigned attributes for the duration of the C<html2wiki()>
+call.
 
 =cut
 
 sub html2wiki {
   my $self = shift;
 
-  my %args = @_ == 1 ? ( html => +shift ) : @_;
+  my %args = @_ % 2 ? ( html => +shift, @_ ) : @_;
   die "missing 'html' or 'file' argument to html2wiki" unless exists $args{html} or $args{file};
   die "cannot specify both 'html' and 'file' arguments to html2wiki" if exists $args{html} and exists $args{file};
-  my $html = $args{html} || '';
-  my $file = $args{file} || '';
-  my $slurp = $args{slurp} || 0;
+  my $html = delete $args{html} || '';
+  my $file = delete $args{file} || '';
 
-  $html = $self->__slurp($file) if $file && $slurp;
+  $self->__original_attrs( $self->__attrs );
+  $self->__attrs( { %{ $self->__attrs }, %args } );
+
+  $html = $self->__slurp($file) if $file && $self->slurp;
   $html = "<html>$html</html>" if $html and $self->wrap_in_html;
 
   # Decode into Perl's internal form
@@ -181,8 +173,12 @@ sub html2wiki {
   $tree->ignore_unknown(0); # <ruby> et al
 
   # Parse the HTML string or file
-  if( $html ) { $tree->parse($html); }
-  else { $tree->parse_file($file); }
+  if( $html ) {
+    $tree->parse($html);
+    $tree->eof();
+  } else {
+    $tree->parse_file($file);
+  }
 
   # Preprocess, save tree and parsed HTML
   $self->__root( $tree );
@@ -198,6 +194,8 @@ sub html2wiki {
 
   # Return to original encoding
   $output = encode( $self->encoding, $output );
+  
+  $self->__attrs( { %{ $self->__original_attrs } } );
 
   return $output;
 }
@@ -257,7 +255,7 @@ sub __wikify {
 
     # ...but they are put on their own line
     $output = "\n$output" if $rules->{block} and $node->parent->look_up( _tag => $node->tag ) and $trim ne 'none';
-    
+
     return $output;
   }
 }
@@ -279,8 +277,10 @@ sub __preserve_start {
   return '<'.$tag.$slash.'>';
 }
 
-# Maps tag name to its URI attribute
+# Maps a tag name to its URI attribute
 my %rel2abs = ( a => 'href', img => 'src' );
+
+my %emptyTag = ( %HTML::Tagset::emptyElement, '~comment' => 1, '~text' => 1 );
 
 sub __preprocess_tree {
   my $self = shift;
@@ -288,9 +288,11 @@ sub __preprocess_tree {
   $self->__root->objectify_text();
 
   my %strip_tag = map { $_ => 1 } @{ $self->strip_tags || [] };
+
   foreach my $node ( $self->__root->descendents ) {
     $node->tag('') unless $node->tag;
     $node->delete, next if $strip_tag{$node->tag};
+    $node->delete, next if $self->remove_empty and !$emptyTag{$node->tag} and !$node->content_list;
     $self->__rm_invalid_text($node);
     $self->__encode_entities($node) if $node->tag eq '~text';
     $self->__rel2abs($node) if $self->base_uri and $rel2abs{$node->tag};
@@ -330,11 +332,6 @@ sub __rm_invalid_text {
   }
 }
 
-sub rule {
-  my( $class, $tag, $spec ) = @_ == 3 ? @_ : ( (caller)[0], @_ );
-  $class->__rules->{$tag} = $spec;
-}
-
 sub strip_aname {
   my( $self, $node ) = @_;
   return if $node->attr('href');
@@ -363,47 +360,53 @@ sub __postprocess_output {
 
 sub postprocess_output { }
 
-sub attribute {
-  my( $class, $attrib, $spec ) = @_ == 3 ? @_ : ( (caller)[0], @_ );
+sub __default_attribute_specs { {
+  slurp        => { type => BOOLEAN,  default => 0 },
+  remove_empty => { type => BOOLEAN,  default => 0 },
+  preprocess   => { type => CODEREF,  default => undef },
+  strip_tags   => { type => ARRAYREF, default => [ qw/ ~comment head script style / ] },
+  encoding     => { type => SCALAR,   default => 'utf-8' },
+  wrap_in_html => { type => BOOLEAN,  default => 1 },
+  wiki_uri     => { type => SCALAR | ARRAYREF, default => undef },
+  base_uri     => { type => SCALAR,   default => undef },
+  dialect      => { type => SCALAR,   optional => 0 },
+} }
 
-  # Make a copy of the hash so all dialects don't step on each others'
-  # toes by storing their attributes in the same hashref
-  my %attribs = %{ $class->__attributes_spec };
-  $attribs{$attrib} = $spec;
+sub attributes { {} }
 
-  $class->__attributes_spec( \%attribs );
+sub __load_attribute_specs {
+  my $self = shift;
+
+  # Get default attribute specs
+  my $default_specs = $self->__default_attribute_specs;
+
+  # Get dialect attribute specs
+  my @dialect_specs = $self->attributes;
+  my $dialect_specs = @dialect_specs == 1 && ref $dialect_specs[0] eq 'HASH' ? $dialect_specs[0] : {@dialect_specs};
+
+  my %attr_specs = %$default_specs;
+  while( my( $attr, $spec ) = each %$dialect_specs ) {
+    $attr_specs{$attr} = $spec;
+  }
+
+  $self->__attribute_specs( \%attr_specs );
 }
 
 sub __validate_attributes {
   my $self = shift;
-  $self->__merge_oldstyle_attributes(); # XXX: remove in 0.60
-  my %attrs = validate( @_, $self->__attributes_spec );
-  $self->_attr( $_ => $attrs{$_} ) for keys %attrs;
-}
 
-# XXX: For backwards compatibility with 0.5x; will be removed in 0.60
-sub attributes { }
-
-# XXX: Ditto
-sub __merge_oldstyle_attributes {
-  my $self = shift;
-  my %oldstyle_attrs = $self->attributes;
-  while( my( $name, $default ) = each %oldstyle_attrs ) {
-    $self->attribute( $name => { default => $default } );
+  my %attrs = validate( @_, $self->__attribute_specs );
+  while( my( $attr, $value ) = each %attrs ) {
+    $self->$attr($value);
   }
 }
 
-# XXX: Ditto
-sub __merge_oldstyle_rules {
-  my $self = shift;
-  my $oldstyle_rules = $self->rules;
-  while( my( $tag, $spec ) = each %$oldstyle_rules ) {
-    $self->rule( $tag => $spec );
-  }
-}
-
-# XXX: Ditto
 sub rules { {} }
+
+sub __load_rules {
+  my $self = shift;
+  $self->__rules( $self->rules );
+}
 
 my %meta_rules = (
   trim        => { range => [ qw/ none both leading trailing / ] },
@@ -416,8 +419,6 @@ my %meta_rules = (
 
 sub __validate_rules {
   my $self = shift;
-
-  $self->__merge_oldstyle_rules(); # XXX: remove in 0.60
 
   foreach my $tag ( keys %{ $self->__rules } ) {
     my $rules = $self->__rules->{$tag};
@@ -507,7 +508,7 @@ internally. Useful for debugging.
 
 =cut
 
-sub parsed_html { shift->_attr( __parsed_html => @_ ) }
+sub parsed_html { shift->_attr( { internal => 1 }, __parsed_html => @_ ) }
 
 =head2 available_dialects
 
@@ -537,24 +538,18 @@ sub available_dialects {
 
 You may configure C<HTML::WikiConverter> using a number of
 attributes. These may be passed as arguments to the C<new>
-constructor, or can be called as object methods on a
-C<HTML::WikiConverter> object.
+constructor, or can be called as object methods on an H::WC object.
 
-Some dialects allow other attributes in addition to those
-below. Consult individual dialect documentation for details.
-
-=cut
+Some dialects allow other attributes in addition to those below, and
+may override the attributes' default values. Consult the dialect's
+documentation for details.
 
 =head2 dialect
 
 (Required) Dialect to use for converting HTML into wiki markup. See
-the L</"DESCRIPTION"> section above for a list of dialects. C<new>
+the L</"DESCRIPTION"> section above for a list of dialects. C<new()>
 will fail if the dialect given is not installed on your system. Use
 C<available_dialects()> to list installed dialects.
-
-=cut
-
-attribute dialect => { type => SCALAR, optional => 0 };
 
 =head2 base_uri
 
@@ -565,10 +560,6 @@ to wiki markup, which is necessary for wiki dialects that handle
 internal and external links separately. Relative URLs are only
 converted to absolute ones if the C<base_uri> argument is
 present. Defaults to C<undef>.
-
-=cut
-
-attribute base_uri => { type => SCALAR, default => undef };
 
 =head2 wiki_uri
 
@@ -593,9 +584,9 @@ Wikipedia might use
 C<qr~http://en\.wikipedia\.org/w/index\.php\?title\=([^&]+)~>.
 
 C<wiki_uri> can also be a coderef that takes the current
-C<HTML::WikiConverter> object and a L<URI> object. It should the title
-of the wiki page extracted from the URI, or C<undef> if the URI
-doesn't represent a link to a wiki page.
+C<HTML::WikiConverter> object and a L<URI> object. It should return
+the title of the wiki page extracted from the URI, or C<undef> if the
+URI doesn't represent a link to a wiki page.
 
 As mentioned above, the C<wiki_uri> attribute can either take a single
 URI/regexp/coderef element or it may be assigned a reference to an
@@ -611,29 +602,17 @@ English Wikipedia might use:
     ]
   );
 
-=cut
-
-attribute wiki_uri => { type => SCALAR | ARRAYREF, default => undef };
-
 =head2 wrap_in_html
 
 Helps L<HTML::TreeBuilder> parse HTML fragments by wrapping HTML in
 C<E<lt>htmlE<gt>> and C<E<lt>/htmlE<gt>> before passing it through
 C<html2wiki>. Boolean, enabled by default.
 
-=cut
-
-attribute wrap_in_html => { type => BOOLEAN, default => 1 };
-
 =head2 encoding
 
 Specifies the encoding used by the HTML to be converted. Also
 determines the encoding of the wiki markup returned by the
 C<html2wiki> method. Defaults to C<'utf8'>.
-
-=cut
-
-attribute encoding => { type => SCALAR, default => 'utf-8' };
 
 =head2 strip_tags
 
@@ -642,10 +621,6 @@ prior to conversion to wiki markup. Tag names are the same as those
 used in L<HTML::Element>. Defaults to C<[ '~comment', 'head',
 'script', 'style' ]>.
 
-=cut
-
-attribute strip_tags => { type => ARRAYREF, default => [ qw/ ~comment head script style / ] };
-
 =head2 preprocess
 
 Code reference that gets invoked after HTML is parsed but before it is
@@ -653,9 +628,20 @@ converted into wiki markup. The callback is passed two arguments: the
 C<HTML::WikiConverter> object and a L<HTML::Element> pointing to the
 root node of the HTML tree created by L<HTML::TreeBuilder>.
 
-=cut
+=head2 remove_empty
 
-attribute preprocess => { type => CODEREF, default => undef };
+Removes elements containing no content (unless those elements
+legitimately contain no content, such as is the case for C<br> and
+C<img> elements, for example). Defaults to false.
+
+=head2 slurp
+
+When parsing HTML files, bypasses C<HTML::Parser>'s incremental
+parsing (thus I<slurping> the file in all at once). If L<File::Slurp>
+is installed, its C<read_file()> function will be used to perform
+slurping; otherwise, a common Perl idiom will be used for slurping
+instead. This option has no effect if all you do is call
+C<html2wiki()> with a single HTML string argument instead of a file.
 
 =head1 ADDING A DIALECT
 
@@ -666,7 +652,7 @@ get a spare moment.
 
 =head1 SEE ALSO
 
-L<HTML::TreeBuilder>, L<HTML::Element>, L<Convert::Wiki>
+L<HTML::Tree>, L<Convert::Wiki>
 
 =head1 AUTHOR
 
@@ -717,8 +703,8 @@ C<available_dialects()> class method.
 My thanks also goes to Martin Kudlvasr for catching (and fixing!) a
 bug in the logic of how HTML files were processed.
 
-Big thanks to Dave Schaefer for the (forthcoming) PbWiki dialect and
-the idea behind the C<attribute()> method.
+Big thanks to Dave Schaefer for the PbWiki dialect and for the idea
+behind the new C<attributes()> implementation.
 
 =head1 COPYRIGHT & LICENSE
 
