@@ -1,5 +1,5 @@
-HTML::WikiConverter version 0.53
-================================
+HTML::WikiConverter version
+===========================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
 HTML source into a variety of wiki dialects. It's aimed at folks who
@@ -9,6 +9,7 @@ The following dialects are supported:
 
   DokuWiki
   Kwiki
+  Markdown
   MediaWiki
   MoinMoin
   Oddmuse
@@ -53,12 +54,7 @@ The included html2wiki utility converts on the command line:
 
 There's also a web interface if you're so inclined:
 
-  http://diberri.dyndns.org/html2wiki.html
-
-UNICODE SUPPORT
-
-As of version 0.40, HTML::WikiConverter supports multiple character
-encodings via the 'encodings' attribute.
+  http://diberri.dyndns.org/wikipedia/html2wiki/
 
 PREREQUISITES
 
@@ -69,9 +65,10 @@ PREREQUISITES
   * Class::Data::Inheritable, Params::Validate, and Exporter
     for the HTML::WikiConverter API and internals
 
-CHANGES IN VERSION 0.53
+CHANGES IN VERSION 0.54
 
-  * Documentation tweaks
+  * (bug #19046) Allow lone '0' in text
+  * (bug #19046) Tag attributes must be containined on a single line
 
 THANKS TO
 

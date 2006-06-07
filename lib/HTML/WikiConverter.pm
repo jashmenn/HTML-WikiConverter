@@ -13,7 +13,7 @@ use Encode;
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.53';
+our $VERSION = '0.54';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -101,9 +101,9 @@ sub __attribute_specs { shift->_attr( { internal => 1 }, __attribute_specs => @_
 
 # Pass '{internal=>1}' as first arg for params that aren't attributes
 sub _attr {
-  my( $self, $opts, $param, $value ) = ref $_[1] eq 'HASH' ? @_ : ( +shift, {}, @_ );
+  my( $self, $opts, $param, @value ) = ref $_[1] eq 'HASH' ? @_ : ( +shift, {}, @_ );
   my $store = $opts->{internal} ? $self : $self->__attrs;
-  $store->{$param} = $value if defined $value;
+  $store->{$param} = $value[0] if @value;
   return defined $store->{$param} ? $store->{$param} : '';
 }
 
@@ -308,7 +308,7 @@ sub __preprocess_tree {
 # Encodes high-bit and control chars in node's text to HTML entities.
 sub __encode_entities {
   my( $self, $node ) = @_;
-  my $text = $node->attr('text') || '';
+  my $text = defined $node->attr('text') ? $node->attr('text') : '';
   encode_entities( $text, '<>&' );
   $node->attr( text => $text );
 }
@@ -326,7 +326,7 @@ my %containers = map { $_ => 1 } qw/ table tbody tr ul ol dl menu /;
 
 sub __rm_invalid_text {
   my( $self, $node ) = @_;
-  my $tag = $node->tag || '';
+  my $tag = defined $node->tag ? $node->tag : '';
   if( $containers{$tag} ) {
     $_->delete for grep { $_->tag eq '~text' } $node->content_list;
   }
@@ -414,7 +414,7 @@ my %meta_rules = (
   replace     => { singleton => 1 },
   alias       => { singleton => 1 },
   attributes  => { depends => [ qw/ preserve / ] },
-  empty       => { depends => [ qw/ preserve / ] }
+  empty       => { depends => [ qw/ preserve / ] },
 );
 
 sub __validate_rules {
@@ -455,7 +455,8 @@ sub __rule_error {
 
 sub get_elem_contents {
   my( $self, $node ) = @_;
-  return join '', map { $self->__wikify($_) } $node->content_list;
+  my $str =  join '', map { $self->__wikify($_) } $node->content_list;
+  return defined $str ? $str : '';
 }
 
 sub get_wiki_page {
@@ -495,7 +496,11 @@ sub get_attr_str {
   my( $self, $node, @attrs ) = @_;
   my %attrs = map { $_ => $node->attr($_) } @attrs;
   my $str = join ' ', map { $_.'="'.encode_entities($attrs{$_}).'"' } grep { $attrs{$_} } @attrs;
-  return $str || '';
+
+  # (bug #19046) partial fix: attributes must be contained on a single line
+  $str =~ s/[\n\r]/ /g if $str;
+
+  return defined $str ? $str : '';
 }
 
 =head2 parsed_html

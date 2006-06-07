@@ -1,7 +1,13 @@
 # Change log for HTML::WikiConverter
 
+version: 0.54
+date:    Wed Jun 07 16:00:00 EST 2006
+changes:
+  - (bug #19046) allow lone '0' in text (previously such strings were assumed empty)
+  - (bug #19046) element attributes must be containined on a single line
+
 version: 0.53
-date:    ??
+date:    Sat Jun 03 23:00:00 EST 2006
 changes:
   - revert "dialects now inherit via 'use HTML::WikiConverter -dialect;'" change
   - lots of documentation tweaks
