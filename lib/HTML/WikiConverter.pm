@@ -9,11 +9,12 @@ use HTML::Tagset;
 use File::Spec;
 use DirHandle;
 use Encode;
+use Carp;
 
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.54';
+our $VERSION = '0.55';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -77,12 +78,12 @@ sub new {
 
 sub __new_dialect {
   my( $pkg, %opts ) = @_;
-  die "Required 'dialect' parameter is missing" unless $opts{dialect};
+  croak "Required 'dialect' parameter is missing" unless $opts{dialect};
   my @dialect_classes = ( __PACKAGE__.'::'.$opts{dialect}, $opts{dialect} );
   foreach my $dialect_class ( @dialect_classes ) {
     return $dialect_class->new( %opts ) if eval "use $dialect_class; 1" or $dialect_class->isa($pkg);
   }
-  die "Dialect '$opts{dialect}' could not be loaded (tried @dialect_classes). Error: $@";
+  croak "Dialect '$opts{dialect}' could not be loaded (tried @dialect_classes). Error: $@";
 }
 
 sub __setup {
@@ -112,7 +113,7 @@ sub AUTOLOAD {
   my $self = shift;
   ( my $attr = $AUTOLOAD ) =~ s/.*://;
   return $self->_attr( $attr => @_ ) if exists $self->__attribute_specs->{$attr};
-  die "Can't locate method '$attr' in package ".ref($self);
+  croak "Can't locate method '$attr' in package ".ref($self);
 }
 
 # So AUTOLOAD doesn't intercept calls to this method
@@ -127,7 +128,7 @@ sub __slurp {
 
 sub __simple_slurp {
   my( $self, $file ) = @_;
-  open my $fh, $file or die "can't open file $file for reading: $!";
+  open my $fh, $file or croak "can't open file $file for reading: $!";
   my $text = do { local $/; <$fh> };
   close $fh;
   return $text;
@@ -152,8 +153,8 @@ sub html2wiki {
   my $self = shift;
 
   my %args = @_ % 2 ? ( html => +shift, @_ ) : @_;
-  die "missing 'html' or 'file' argument to html2wiki" unless exists $args{html} or $args{file};
-  die "cannot specify both 'html' and 'file' arguments to html2wiki" if exists $args{html} and exists $args{file};
+  croak "missing 'html' or 'file' argument to html2wiki" unless exists $args{html} or $args{file};
+  croak "cannot specify both 'html' and 'file' arguments to html2wiki" if exists $args{html} and exists $args{file};
   my $html = delete $args{html} || '';
   my $file = delete $args{file} || '';
 
@@ -294,7 +295,7 @@ sub __preprocess_tree {
     $node->delete, next if $strip_tag{$node->tag};
     $node->delete, next if $self->remove_empty and !$emptyTag{$node->tag} and !$node->content_list;
     $self->__rm_invalid_text($node);
-    $self->__encode_entities($node) if $node->tag eq '~text';
+    $self->__encode_entities($node) if $node->tag eq '~text' and $self->escape_entities;
     $self->__rel2abs($node) if $self->base_uri and $rel2abs{$node->tag};
     $self->preprocess_node($node);
   }
@@ -360,18 +361,6 @@ sub __postprocess_output {
 
 sub postprocess_output { }
 
-sub __default_attribute_specs { {
-  slurp        => { type => BOOLEAN,  default => 0 },
-  remove_empty => { type => BOOLEAN,  default => 0 },
-  preprocess   => { type => CODEREF,  default => undef },
-  strip_tags   => { type => ARRAYREF, default => [ qw/ ~comment head script style / ] },
-  encoding     => { type => SCALAR,   default => 'utf-8' },
-  wrap_in_html => { type => BOOLEAN,  default => 1 },
-  wiki_uri     => { type => SCALAR | ARRAYREF, default => undef },
-  base_uri     => { type => SCALAR,   default => undef },
-  dialect      => { type => SCALAR,   optional => 0 },
-} }
-
 sub attributes { {} }
 
 sub __load_attribute_specs {
@@ -395,7 +384,19 @@ sub __load_attribute_specs {
 sub __validate_attributes {
   my $self = shift;
 
-  my %attrs = validate( @_, $self->__attribute_specs );
+  my %attrs = eval { validate( @_, $self->__attribute_specs ) };
+
+  if( my $error = $@ ) {
+    # Validating attributes failed, so we don't have access to the
+    # 'dialect' attribute; obtain it from the package name instead
+    ( my $dialect = ref $self ) =~ s/.*://;
+
+    $error = sprintf "The attribute '%s' does not exist in the dialect '%s'.", $1, $dialect
+      if $error =~ /not listed in the validation options\: (\w+)/;
+    
+    croak $error;
+  }
+
   while( my( $attr, $value ) = each %attrs ) {
     $self->$attr($value);
   }
@@ -450,7 +451,7 @@ sub __validate_rules {
 sub __rule_error {
   my( $self, $tag, @msg ) = @_;
   my $dialect = ref $self;
-  die @msg, " in tag '$tag', dialect '$dialect'.\n";
+  croak @msg, " in tag '$tag', dialect '$dialect'.\n";
 }
 
 sub get_elem_contents {
@@ -647,6 +648,28 @@ is installed, its C<read_file()> function will be used to perform
 slurping; otherwise, a common Perl idiom will be used for slurping
 instead. This option has no effect if all you do is call
 C<html2wiki()> with a single HTML string argument instead of a file.
+
+=head2 escape_entities
+
+Potentially unsafe characters found within text nodes can be
+automatically encoded into their corresponding HTML entities, a
+feature enabled by giving the C<escape_entities> a true value.
+Defaults to true.
+
+=cut
+
+sub __default_attribute_specs { {
+  dialect      => { type => SCALAR,   optional => 0 },
+  slurp        => { type => BOOLEAN,  default => 0 },
+  remove_empty => { type => BOOLEAN,  default => 0 },
+  preprocess   => { type => CODEREF,  default => undef },
+  strip_tags   => { type => ARRAYREF, default => [ qw/ ~comment head script style / ] },
+  encoding     => { type => SCALAR,   default => 'utf-8' },
+  wrap_in_html => { type => BOOLEAN,  default => 1 },
+  wiki_uri     => { type => SCALAR | ARRAYREF, default => undef },
+  base_uri     => { type => SCALAR,   default => undef },
+  escape_entities => { type => BOOLEAN, default => 1 },
+} }
 
 =head1 ADDING A DIALECT
 

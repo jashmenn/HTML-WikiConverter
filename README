@@ -1,5 +1,5 @@
-HTML::WikiConverter version
-===========================
+HTML::WikiConverter version 0.55
+================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
 HTML source into a variety of wiki dialects. It's aimed at folks who
@@ -65,10 +65,14 @@ PREREQUISITES
   * Class::Data::Inheritable, Params::Validate, and Exporter
     for the HTML::WikiConverter API and internals
 
-CHANGES IN VERSION 0.54
+CHANGES IN VERSION 0.55
 
-  * (bug #19046) Allow lone '0' in text
-  * (bug #19046) Tag attributes must be containined on a single line
+  * (bug #19429) Add "escape_entities" attribute
+  * html2wiki utility accepts command-line options for all dialect
+    attributes
+  * All recognized options to html2wiki now displayed with --options
+    switch on the command line
+  * Improved error messages using carp/croak
 
 THANKS TO
 

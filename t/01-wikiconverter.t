@@ -58,7 +58,7 @@ sub attributes { {
 
 package main;
 
-use Test::More tests => 30;
+use Test::More tests => 32;
 use HTML::WikiConverter;
 use URI::QueryParam;
 
@@ -135,3 +135,6 @@ is( $wc4->remove_empty, 1, 'attribute set via html2wiki() only lasts for the dur
 is( $wc4->html2wiki('<em>e</em>'), '', 'attribute set via new() has original value' );
 is( $wc4->html2wiki('<em>e</em>', strip_tags => ['strong'] ), '//e//', 'assign ref to attr inside html2wiki()' );
 is( $wc4->html2wiki('<em>e</em>'), '', 'ref attr returns to original value after call to html2wiki()' );
+
+is( $wc4->html2wiki( html => '&lt;', escape_entities => 0 ), '<', "don't escape entities" );
+is( $wc4->html2wiki( html => '&lt;', escape_entities => 1 ), '&lt;', "escape entities" );

@@ -20,6 +20,7 @@ WriteMakefile(
         'Params::Validate' => 0.77,
         'Class::Data::Inheritable' => 0.02,
         'Exporter' => 0,
+        'Carp' => 0,
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'HTML-WikiConverter-*' },

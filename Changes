@@ -1,5 +1,15 @@
 # Change log for HTML::WikiConverter
 
+version: 0.55
+date:    Thu Jun 08 17:00:00 EST 2006
+changes:
+  - (bug #19429) add "escape_entities" attribute
+  - html2wiki utility accepts command-line options for all dialect
+    attributes
+  - all recognized options to html2wiki now displayed with --options
+    switch on the command line
+  - improved error messages using carp/croak
+
 version: 0.54
 date:    Wed Jun 07 16:00:00 EST 2006
 changes:
