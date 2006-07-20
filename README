@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.55
+HTML::WikiConverter version 0.60
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
@@ -58,21 +58,39 @@ There's also a web interface if you're so inclined:
 
 PREREQUISITES
 
-  * Test::More for testing
-  * HTML::TreeBuilder for building and manipulating HTML trees
-  * HTML::Entities for encoding HTML entities
-  * URI and URI::Escape for handling URIs in links
-  * Class::Data::Inheritable, Params::Validate, and Exporter
-    for the HTML::WikiConverter API and internals
+  * Test::More
+  * HTML::TreeBuilder
+  * HTML::Tagset
+  * HTML::Entities
+  * URI and URI::Escape
+  * Class::Data::Inheritable
+  * Params::Validate
 
-CHANGES IN VERSION 0.55
+CHANGES IN VERSION 0.60
 
-  * (bug #19429) Add "escape_entities" attribute
-  * html2wiki utility accepts command-line options for all dialect
-    attributes
-  * All recognized options to html2wiki now displayed with --options
-    switch on the command line
-  * Improved error messages using carp/croak
+  * Add CSS-to-HTML normalization so, for example,
+    '<font style="font-weight:bold">text</font>' will be interpreted
+    as '<b>text</b>' before conversion to wiki markup. This can be
+    disabled by passing the 'normalize' attribute a false value.
+  * Non-semantic tags with no attributes can be replaced with their
+    content by enabling the 'passthrough_naked_tags' attribute.
+  * Rules are now loaded on demand so they can respond to attribute
+    modification events.
+  * The new "UNKNOWN" rule acts as a catch-all for unknown tags.
+  * HTML can now be fetched from a URI by passing a 'uri' argument to
+    the html2wiki() method.
+  * The user agent used to fetch content from a URI can be specified
+    in the 'user_agent' attribute.
+  * Dialect authors may now use the 'passthrough' subrule for replacing
+    tags with their contents at conversion time.
+  * The 'remove_empty' attribute is now called 'strip_empty_tags' for
+    consistency with other attributes. It behaves slightly different
+    too, considering elements empty if they contain only whitespace.
+
+BUGS
+
+I made the mistake of packing too many changes into the 0.60 release,
+so there will likely be some bugs. Please report them to rt.cpan.org.
 
 THANKS TO
 

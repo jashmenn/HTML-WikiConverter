@@ -14,9 +14,12 @@ all_pod_coverage_ok( { also_private => [
     |rules
     |attribute
     |attributes
+    |preprocess_tree
     |preprocess_node
     |postprocess_output
     |caption2para
     |strip_aname
+    |base_url
+    |wiki_url
   /x
 ] } );

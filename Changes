@@ -1,5 +1,30 @@
 # Change log for HTML::WikiConverter
 
+version: 0.60
+date:    ???
+changes:
+  - add CSS-to-HTML normalization so, for example,
+    '<font style="font-weight:bold">text</font>' will be interpreted
+    as '<b>text</b>' before conversion to wiki markup
+  - CSS-to-HTML normalization, which is enabled by default, can
+    be disabled by setting the 'normalize' to a false value
+  - add 'passthrough_naked_tags' attribute, which accepts a list of
+    tags to be replaced with their content if the tags contain no
+    attributes
+  - add on-demand rule-loading so that rules that depend on
+    attribute values will be updated when attributes are updated
+  - add "UNKNOWN" rule as a catch-all for unknown tags
+  - HTML can now be fetched from a URI by passing a 'uri' option to
+    the html2wiki() method
+  - the user agent used to fetch content from a URI can be specified
+    in the 'user_agent' attribute
+  - add 'passthrough' subrule for dialect module authors
+  - rename 'remove_empty' to 'strip_empty_tags' for consistency with
+    other attributes
+  - improve handling of 'strip_empty_tags' attribute so that elements
+    containing only whitespace are considered empty
+  - documentation tweaks, including better synopsis [todo]
+
 version: 0.55
 date:    Thu Jun 08 17:00:00 EST 2006
 changes:

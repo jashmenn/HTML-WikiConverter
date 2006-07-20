@@ -3,6 +3,7 @@ use warnings;
 use strict;
 
 use Params::Validate ':all';
+use HTML::WikiConverter::Normalizer;
 use HTML::TreeBuilder;
 use HTML::Entities;
 use HTML::Tagset;
@@ -14,7 +15,7 @@ use Carp;
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.55';
+our $VERSION = '0.60';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -25,7 +26,24 @@ HTML::WikiConverter - Convert HTML to wiki markup
 
   use HTML::WikiConverter;
   my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
+
+  # Provide HTML directly
   print $wc->html2wiki( $html );
+
+  # ...which is the same as
+  print $wc->html2wiki( html => $html );
+
+  # Or fetch it from a file
+  print $wc->html2wiki( file => $path );
+
+  # ...slurp it all at once rather than parsing incrementally
+  print $wc->html2wiki( file => $path, slurp => 1 );
+
+  # Or from a URI
+  print $wc->html2wiki( uri => $uri );
+
+  # Get a list of installed dialects
+  my @dialects = HTML::WikiConverter->available_dialects;
 
 =head1 DESCRIPTION
 
@@ -59,7 +77,7 @@ appreciated.
 
   my $wc = new HTML::WikiConverter( dialect => $dialect, %attrs );
 
-Returns a converter for the specified wiki dialect. Dies if
+Returns a converter for the specified wiki dialect. Croaks if
 C<$dialect> is not provided or its dialect module is not installed on
 your system. Additional attributes may be specified in C<%attrs>; see
 L</"ATTRIBUTES"> for a list of recognized attributes.
@@ -88,23 +106,50 @@ sub __new_dialect {
 
 sub __setup {
   my $self = shift;
+  $self->__setup_attributes(@_);
+  $self->__setup_rules();
+}
+
+sub __setup_attributes {
+  my $self = shift;
   $self->__attrs( {} );
-  $self->__validate_attributes(@_);
+  $self->__load_and_validate_attributes(@_);
+}
+
+sub __setup_rules {
+  my $self = shift;
   $self->__load_rules();
   $self->__validate_rules();
 }
 
 sub __original_attrs { shift->_attr( { internal => 1 }, __original_attrs => @_ ) }
 sub __attrs { shift->_attr( { internal => 1 }, __attrs => @_ ) }
+sub __attrs_changed { shift->_attr( { internal => 1 }, __attrs_changed => @_ ) }
 sub __root { shift->_attr( { internal => 1 }, __root => @_ ) }
 sub __rules { shift->_attr( { internal => 1 }, __rules => @_ ) }
 sub __attribute_specs { shift->_attr( { internal => 1 }, __attribute_specs => @_ ) }
+
+# Unsupported attributes
+sub base_url { shift->__no_such( attribute => qw/ base_url base_uri / ) }
+sub wiki_url { shift->__no_such( attribute => qw/ wiki_url wiki_uri / ) }
+
+sub __no_such {
+  my( $self, $thing, $that, $this ) = @_;
+  croak "'$that' is not a valid $thing. Perhaps you meant '$this'?";
+}
 
 # Pass '{internal=>1}' as first arg for params that aren't attributes
 sub _attr {
   my( $self, $opts, $param, @value ) = ref $_[1] eq 'HASH' ? @_ : ( +shift, {}, @_ );
   my $store = $opts->{internal} ? $self : $self->__attrs;
-  $store->{$param} = $value[0] if @value;
+
+  if( @value ) {
+    eval { validate_pos( @value, $self->__attribute_specs->{$param} ) unless $opts->{internal} };
+    $self->__attribute_error($@) if $@;
+    $store->{$param} = $value[0];
+    $self->__attrs_changed(1) if !$opts->{internal};
+  }
+
   return defined $store->{$param} ? $store->{$param} : '';
 }
 
@@ -139,13 +184,15 @@ sub __simple_slurp {
   $wiki = $wc->html2wiki( $html, %attrs );
   $wiki = $wc->html2wiki( html => $html, %attrs );
   $wiki = $wc->html2wiki( file => $file, %attrs );
+  $wiki = $wc->html2wiki( uri => $uri, %attrs );
 
 Converts HTML source to wiki markup for the current dialect. Accepts
-either an HTML string C<$html> or an HTML file C<$file> to read from.
+either an HTML string C<$html>, an file C<$file>, or a URI <$uri> to
+read from.
 
-Attributes assigned in C<%attrs> (see L</"ATTRIBUTES">) will override
-previously assigned attributes for the duration of the C<html2wiki()>
-call.
+Attributes assigned in C<%attrs> (see L</"ATTRIBUTES">) will augment
+or override previously assigned attributes for the duration of the
+C<html2wiki()> call.
 
 =cut
 
@@ -153,16 +200,27 @@ sub html2wiki {
   my $self = shift;
 
   my %args = @_ % 2 ? ( html => +shift, @_ ) : @_;
-  croak "missing 'html' or 'file' argument to html2wiki" unless exists $args{html} or $args{file};
-  croak "cannot specify both 'html' and 'file' arguments to html2wiki" if exists $args{html} and exists $args{file};
+
+  my %common_arg_errors = ( url => 'uri', base_url => 'base_uri', wiki_url => 'wiki_uri' );
+  while( my( $bad, $good ) = each %common_arg_errors ) {
+    $self->__no_such( 'argument to html2wiki()', $bad, $good ) if exists $args{$bad};
+  }
+
+  my @input_sources = grep { exists $args{$_} } qw/ html file uri /;
+  croak "missing 'html', 'file', or 'uri' argument to html2wiki" unless @input_sources;
+  croak "more than one of 'html', 'file', or 'uri' provided, but only one input source allowed" if @input_sources > 1;
+
   my $html = delete $args{html} || '';
   my $file = delete $args{file} || '';
-
-  $self->__original_attrs( $self->__attrs );
-  $self->__attrs( { %{ $self->__attrs }, %args } );
+  my $uri  = delete $args{uri}  || '';
 
   $html = $self->__slurp($file) if $file && $self->slurp;
+  $html = $self->__fetch_html_from_uri($uri) if $uri; # may set 'user_agent' attrib, so call before storing attribs
   $html = "<html>$html</html>" if $html and $self->wrap_in_html;
+
+  $self->__original_attrs( { %{ $self->__attrs } } );
+  $self->$_( $args{$_} ) foreach keys %args;
+  $self->__setup_rules() if $self->__attrs_changed;
 
   # Decode into Perl's internal form
   $html = decode( $self->encoding, $html );
@@ -175,9 +233,11 @@ sub html2wiki {
 
   # Parse the HTML string or file
   if( $html ) {
+    $self->given_html( $html );
     $tree->parse($html);
     $tree->eof();
   } else {
+    $self->given_html( $self->__slurp($file) );
     $tree->parse_file($file);
   }
 
@@ -195,8 +255,12 @@ sub html2wiki {
 
   # Return to original encoding
   $output = encode( $self->encoding, $output );
-  
-  $self->__attrs( { %{ $self->__original_attrs } } );
+
+  if( $self->__attrs_changed ) {
+    $self->__attrs( { %{ $self->__original_attrs } } );
+    $self->__setup_rules();
+    $self->__attrs_changed(0);
+  }
 
   return $output;
 }
@@ -212,7 +276,7 @@ sub __wikify {
   } elsif( $node->tag eq '~comment' ) {
     return '<!--' . $node->attr('text') . '-->';
   } else {
-    my $rules = $self->__rules->{$node->tag};
+    my $rules = $self->rules_for_tag( $node->tag );
     $rules = $self->__rules->{$rules->{alias}} if $rules->{alias};
 
     return $self->__subst($rules->{replace}, $node, $rules) if exists $rules->{replace};
@@ -221,8 +285,12 @@ sub __wikify {
     if( $rules->{preserve} ) {
       $rules->{__start} = \&__preserve_start,
       $rules->{__end} = $rules->{empty} ? undef : '</'.$node->tag.'>';
+    } elsif( $rules->{passthrough} ) {
+      $rules->{__start} = '';
+      $rules->{__end} = '';
     }
 
+    # Recurse
     my $output = $self->get_elem_contents($node);
 
     # Unspecified tags have their whitespace preserved (this allows
@@ -251,7 +319,7 @@ sub __wikify {
     $output = $self->__subst($rules->{start}, $node, $rules).$output if $rules->{start};
     $output = $output.$self->__subst($rules->{end}, $node, $rules) if $rules->{end};
     
-    # Nested block elements are not blocked...
+    # Nested block elements themselves are not blocked...
     $output = "\n\n$output\n\n" if $rules->{block} && ! $node->parent->look_up( _tag => $node->tag );
 
     # ...but they are put on their own line
@@ -281,20 +349,27 @@ sub __preserve_start {
 # Maps a tag name to its URI attribute
 my %rel2abs = ( a => 'href', img => 'src' );
 
-my %emptyTag = ( %HTML::Tagset::emptyElement, '~comment' => 1, '~text' => 1 );
+my %allowedEmptyTag = ( %HTML::Tagset::emptyElement, '~comment' => 1, '~text' => 1 );
+my %isKnownTag = %HTML::Tagset::isKnown;
 
 sub __preprocess_tree {
   my $self = shift;
 
   $self->__root->objectify_text();
 
+  $self->preprocess_tree($self->__root);
+
+  HTML::WikiConverter::Normalizer->new->normalize($self->__root) if $self->normalize;
+
   my %strip_tag = map { $_ => 1 } @{ $self->strip_tags || [] };
+  my %passthrough_naked_tags = map { $_ => 1 } $self->__passthrough_naked_tags;
 
   foreach my $node ( $self->__root->descendents ) {
     $node->tag('') unless $node->tag;
     $node->delete, next if $strip_tag{$node->tag};
-    $node->delete, next if $self->remove_empty and !$emptyTag{$node->tag} and !$node->content_list;
+    $node->replace_with_content->delete, next if $passthrough_naked_tags{$node->tag} and !$node->all_external_attr_names;
     $self->__rm_invalid_text($node);
+    $node->delete, next if $self->strip_empty_tags and !$allowedEmptyTag{$node->tag} and $self->__elem_is_empty($node);
     $self->__encode_entities($node) if $node->tag eq '~text' and $self->escape_entities;
     $self->__rel2abs($node) if $self->base_uri and $rel2abs{$node->tag};
     $self->preprocess_node($node);
@@ -305,6 +380,60 @@ sub __preprocess_tree {
 
   $self->preprocess->( $self->__root ) if ref $self->preprocess;
 }
+
+sub __passthrough_naked_tags {
+  my $self = shift;
+
+  my @tags;
+  if( ref $self->passthrough_naked_tags eq 'ARRAY' ) {
+    @tags = @{ $self->passthrough_naked_tags };
+  } elsif( $self->passthrough_naked_tags ) {
+    @tags = $self->__default_passthrough_naked_tags;
+  } else {
+    @tags = ( );
+  }
+
+  return @tags;
+}
+
+sub __default_passthrough_naked_tags { qw/ span div font / }
+
+sub __elem_is_empty {
+  my( $self, $node ) = @_;
+  my $content = $self->get_elem_contents($node);
+  my $has_nonwhitespace = $content && length $content ? $content =~ /\S/ : 0;
+  return !$has_nonwhitespace;
+}
+
+sub __fetch_html_from_uri {
+  my( $self, $uri ) = @_;
+  my $ua = $self->__user_agent;
+  my $res = $ua->get($uri);
+  croak sprintf "request for <$uri> failed with status %s", $res->status unless $res->is_success;
+  my $encoding = $self->encoding || $self->__guess_encoding($res) || 'utf-8';
+  my $html = encode( $self->encoding, decode( $encoding, $res->content ) );
+  return $html;
+}
+
+sub __guess_encoding {
+  my( $self, $res ) = @_;
+  carp "LWP::Charset is not installed but is required for determining the charset claimed by the content at the requested URI", return
+    unless eval "use LWP::Charset; 1";
+  return LWP::Charset::getCharset($res);
+}
+
+sub __user_agent {
+  my $self = shift;
+  $self->user_agent( $self->__default_user_agent ) unless $self->user_agent;
+  return $self->user_agent;
+}
+
+sub __default_user_agent {
+  croak "LWP is not installed but is required for fetching URIs" unless eval "use LWP::UserAgent; 1";
+  return LWP::UserAgent->new( agent => shift->__default_ua_string );
+}
+
+sub __default_ua_string { "html2wiki/$VERSION" }
 
 # Encodes high-bit and control chars in node's text to HTML entities.
 sub __encode_entities {
@@ -347,6 +476,7 @@ sub caption2para {
   $node->tag('p');
 }
 
+sub preprocess_tree { }
 sub preprocess_node { }
 
 sub __postprocess_output {
@@ -381,25 +511,27 @@ sub __load_attribute_specs {
   $self->__attribute_specs( \%attr_specs );
 }
 
-sub __validate_attributes {
+sub __load_and_validate_attributes {
   my $self = shift;
 
   my %attrs = eval { validate( @_, $self->__attribute_specs ) };
-
-  if( my $error = $@ ) {
-    # Validating attributes failed, so we don't have access to the
-    # 'dialect' attribute; obtain it from the package name instead
-    ( my $dialect = ref $self ) =~ s/.*://;
-
-    $error = sprintf "The attribute '%s' does not exist in the dialect '%s'.", $1, $dialect
-      if $error =~ /not listed in the validation options\: (\w+)/;
-    
-    croak $error;
-  }
+  $self->__attribute_error($@) if $@;
 
   while( my( $attr, $value ) = each %attrs ) {
     $self->$attr($value);
   }
+}
+
+sub __attribute_error {
+  my( $self, $error ) = @_;
+  # Validating attributes failed, so we don't have access to the
+  # 'dialect' attribute; obtain it from the package name instead
+  ( my $dialect = ref $self ) =~ s/.*://;
+
+  $error = sprintf "The attribute '%s' does not exist in the dialect '%s'.", $1, $dialect
+    if $error =~ /not listed in the validation options\: (\w+)/;
+
+  croak $error;
 }
 
 sub rules { {} }
@@ -416,6 +548,7 @@ my %meta_rules = (
   alias       => { singleton => 1 },
   attributes  => { depends => [ qw/ preserve / ] },
   empty       => { depends => [ qw/ preserve / ] },
+  passthrough => { singleton => 1 },
 );
 
 sub __validate_rules {
@@ -461,10 +594,10 @@ sub get_elem_contents {
 }
 
 sub get_wiki_page {
-  my( $self, $url ) = @_;
+  my( $self, $uri ) = @_;
   my @wiki_uris = ref $self->wiki_uri eq 'ARRAY' ? @{$self->wiki_uri} : $self->wiki_uri;
   foreach my $wiki_uri ( @wiki_uris ) {
-    my $page = $self->__extract_wiki_page( $url => $wiki_uri );
+    my $page = $self->__extract_wiki_page( $uri => $wiki_uri );
     return $page if $page;
   }
 
@@ -472,17 +605,17 @@ sub get_wiki_page {
 }
 
 sub __extract_wiki_page {
-  my( $self, $url, $wiki_uri ) = @_;
+  my( $self, $uri, $wiki_uri ) = @_;
   return undef unless $wiki_uri;
 
   if( ref $wiki_uri eq 'Regexp' ) {
-    return $url =~ $wiki_uri ? $1 : undef;
+    return $uri =~ $wiki_uri ? $1 : undef;
   } elsif( ref $wiki_uri eq 'CODE' ) {
-    return $wiki_uri->( $self, $url );
+    return $wiki_uri->( $self, $uri );
   } else {
-    return undef unless index( $url, $wiki_uri ) == 0;
-    return undef unless length $url > length $wiki_uri;
-    return substr( $url, length $wiki_uri );
+    return undef unless index( $uri, $wiki_uri ) == 0;
+    return undef unless length $uri > length $wiki_uri;
+    return substr( $uri, length $wiki_uri );
   }
 }
 
@@ -504,13 +637,24 @@ sub get_attr_str {
   return defined $str ? $str : '';
 }
 
+=head2 given_html
+
+  my $html = $wc->given_html;
+
+Returns the HTML passed to or fetched (ie, from a file or URI) by the
+last C<html2wiki()> method call. Useful for debugging.
+
+=cut
+
+sub given_html { shift->_attr( { internal => 1 }, __given_html => @_ ) }
+
 =head2 parsed_html
 
-  my $html = $wc->parsed_html;
+  my $parsed_html = $wc->parsed_html;
 
 Returns L<HTML::TreeBuilder>'s string representation of the
 last-parsed syntax tree, showing how the input HTML was parsed
-internally. Useful for debugging.
+internally. Also useful for debugging.
 
 =cut
 
@@ -533,11 +677,28 @@ sub available_dialects {
     my $dh  = DirHandle->new( $dir ) or next;
     while ( my $f = $dh->read ) {
       next unless $f =~ /^(\w+)\.pm$/;
-      push @dialects, $1;
+      push @dialects, $1 unless $1 eq 'Normalizer';
     }
   }
 
   return wantarray ? sort @dialects : @dialects;
+}
+
+=head2 rules_for_tag
+
+  my $rules = $wc->rules_for_tag( $tag );
+
+Returns the rules that will be used for converting elements of the
+given tag. Note that the rules used for a particular tag may depend on
+the current set of attributes being used.
+
+=cut
+
+sub rules_for_tag {
+  my( $self, $tag ) = @_;
+  return $self->__rules->{$tag} if $self->__rules->{$tag};
+  return $self->__rules->{UNKNOWN} if $self->__rules->{UNKNOWN} and !$isKnownTag{$tag};
+  return { };
 }
 
 =head1 ATTRIBUTES
@@ -550,6 +711,16 @@ Some dialects allow other attributes in addition to those below, and
 may override the attributes' default values. Consult the dialect's
 documentation for details.
 
+=head2 base_uri
+
+URI to use for converting relative URIs to absolute ones. This
+effectively ensures that the C<src> and C<href> attributes of image
+and anchor tags, respectively, are absolute before converting the HTML
+to wiki markup, which is necessary for wiki dialects that handle
+internal and external links separately. Relative URIs are only
+converted to absolute ones if the C<base_uri> argument is
+present. Defaults to C<undef>.
+
 =head2 dialect
 
 (Required) Dialect to use for converting HTML into wiki markup. See
@@ -557,15 +728,64 @@ the L</"DESCRIPTION"> section above for a list of dialects. C<new()>
 will fail if the dialect given is not installed on your system. Use
 C<available_dialects()> to list installed dialects.
 
-=head2 base_uri
+=head2 encoding
 
-URI to use for converting relative URIs to absolute ones. This
-effectively ensures that the C<src> and C<href> attributes of image
-and anchor tags, respectively, are absolute before converting the HTML
-to wiki markup, which is necessary for wiki dialects that handle
-internal and external links separately. Relative URLs are only
-converted to absolute ones if the C<base_uri> argument is
-present. Defaults to C<undef>.
+Specifies the encoding used by the HTML to be converted. Also
+determines the encoding of the wiki markup returned by the
+C<html2wiki> method. Defaults to C<"utf8">.
+
+=head2 escape_entities
+
+Potentially unsafe characters found within text nodes can be
+automatically encoded into their corresponding HTML entities, a
+feature enabled by giving the C<escape_entities> a true value.
+Defaults to true.
+
+head2 passthrough_naked_tags
+
+Boolean indicating whether tags with no attributes ("naked" tags)
+should be removed and replaced with their content. By default, this
+only applies to non-semantic tags such as E<lt>spanE<gt>,
+E<lt>divE<gt>, etc., but does not apply to semantic tags such as
+E<lt>strongE<gt>, E<lt>addressE<gt>, etc. To override this behavior
+and specify the tags that should be considered for passthrough,
+provide this attribute with a reference to an array of tag names.
+Defaults to false, but you'll probably want to enable it.
+
+=head2 preprocess
+
+Code reference that gets invoked after HTML is parsed but before it is
+converted into wiki markup. The callback is passed two arguments: the
+C<HTML::WikiConverter> object and a L<HTML::Element> pointing to the
+root node of the HTML tree created by L<HTML::TreeBuilder>.
+
+=head2 slurp
+
+Boolean that, if enabled, bypasses C<HTML::Parser>'s incremental
+parsing (thus I<slurping> the file in all at once) of files when
+reading HTML files. If L<File::Slurp> is installed, its C<read_file()>
+function will be used to perform slurping; otherwise, a common Perl
+idiom will be used for slurping instead. This option is only used if
+you call C<html2wiki()> with the C<file> argument.
+
+=head2 strip_empty_tags
+
+Strips elements containing no content (unless those elements
+legitimately contain no content, such as is the case for C<br> and
+C<img> tags, for example). Defaults to false.
+
+=head2 strip_tags
+
+A reference to an array of tags to be removed from the HTML input
+prior to conversion to wiki markup. Tag names are the same as those
+used in L<HTML::Element>. Defaults to C<[ '~comment', 'head',
+'script', 'style' ]>.
+
+=head2 user_agent
+
+Specifies the L<LWP::UserAgent> object to be used when fetching the
+URI passed to C<html2wiki()>. If unspecified and C<html2wiki()> is
+passed a URI, a default user agent will be created.
 
 =head2 wiki_uri
 
@@ -614,61 +834,22 @@ Helps L<HTML::TreeBuilder> parse HTML fragments by wrapping HTML in
 C<E<lt>htmlE<gt>> and C<E<lt>/htmlE<gt>> before passing it through
 C<html2wiki>. Boolean, enabled by default.
 
-=head2 encoding
-
-Specifies the encoding used by the HTML to be converted. Also
-determines the encoding of the wiki markup returned by the
-C<html2wiki> method. Defaults to C<'utf8'>.
-
-=head2 strip_tags
-
-A reference to an array of tags to be removed from the HTML input
-prior to conversion to wiki markup. Tag names are the same as those
-used in L<HTML::Element>. Defaults to C<[ '~comment', 'head',
-'script', 'style' ]>.
-
-=head2 preprocess
-
-Code reference that gets invoked after HTML is parsed but before it is
-converted into wiki markup. The callback is passed two arguments: the
-C<HTML::WikiConverter> object and a L<HTML::Element> pointing to the
-root node of the HTML tree created by L<HTML::TreeBuilder>.
-
-=head2 remove_empty
-
-Removes elements containing no content (unless those elements
-legitimately contain no content, such as is the case for C<br> and
-C<img> elements, for example). Defaults to false.
-
-=head2 slurp
-
-When parsing HTML files, bypasses C<HTML::Parser>'s incremental
-parsing (thus I<slurping> the file in all at once). If L<File::Slurp>
-is installed, its C<read_file()> function will be used to perform
-slurping; otherwise, a common Perl idiom will be used for slurping
-instead. This option has no effect if all you do is call
-C<html2wiki()> with a single HTML string argument instead of a file.
-
-=head2 escape_entities
-
-Potentially unsafe characters found within text nodes can be
-automatically encoded into their corresponding HTML entities, a
-feature enabled by giving the C<escape_entities> a true value.
-Defaults to true.
-
 =cut
 
 sub __default_attribute_specs { {
-  dialect      => { type => SCALAR,   optional => 0 },
-  slurp        => { type => BOOLEAN,  default => 0 },
-  remove_empty => { type => BOOLEAN,  default => 0 },
-  preprocess   => { type => CODEREF,  default => undef },
-  strip_tags   => { type => ARRAYREF, default => [ qw/ ~comment head script style / ] },
-  encoding     => { type => SCALAR,   default => 'utf-8' },
-  wrap_in_html => { type => BOOLEAN,  default => 1 },
-  wiki_uri     => { type => SCALAR | ARRAYREF, default => undef },
-  base_uri     => { type => SCALAR,   default => undef },
-  escape_entities => { type => BOOLEAN, default => 1 },
+  base_uri         => { type => SCALAR, default => '' },
+  dialect          => { type => SCALAR, optional => 0 },
+  encoding         => { type => SCALAR, default => 'utf-8' },
+  escape_entities  => { type => BOOLEAN, default => 1 },
+  normalize        => { type => BOOLEAN, default => 1 },
+  preprocess       => { type => CODEREF | UNDEF, default => undef },
+  strip_empty_tags => { type => BOOLEAN, default => 0 },
+  slurp            => { type => BOOLEAN, default => 0 },
+  strip_tags       => { type => ARRAYREF, default => [ qw/ ~comment head script style / ] },
+  passthrough_naked_tags => { type => ARRAYREF | BOOLEAN, default => 0 },
+  user_agent       => { type => OBJECT | UNDEF, default => undef },
+  wiki_uri         => { type => SCALAR | ARRAYREF, default => '' },
+  wrap_in_html     => { type => BOOLEAN, default => 1 },
 } }
 
 =head1 ADDING A DIALECT

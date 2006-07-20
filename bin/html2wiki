@@ -34,7 +34,8 @@ sub get_opts {
     attrs2optspecs(\%attrs)
   );
 
-  GetOptions( @optspec ) or pod2usage(2);
+  eval { GetOptions( @optspec ) or pod2usage(2) };
+  die "problem parsing command-line options: $@" if $@;
 
   $o{dialect} ||= $ENV{WCDIALECT};
   pod2usage(2) unless $o{dialect};
@@ -85,19 +86,19 @@ sub attrs2optspecs {
     if( my $fspec = $forced_optspecs{$attr} ) {
       push @specs, $fspec;
     } else {
-      my $ro_sym = '';
-      my $t_sym = '';
-      my $n_sym = '';
+      my $reqopt_sym = '';
+      my $type_sym = '';
+      my $neg_sym = '';
 
-      $ro_sym = exists $spec->{optional} && !$spec->{optional} ? '=' : ':';
-      $t_sym  = 's@' if $type == ARRAYREF or $type == (SCALAR | ARRAYREF);
-      $t_sym  = 's' if $type == SCALAR;
-      $n_sym  = '!' if $type == BOOLEAN and $spec->{default} and $spec->{default} eq '1';
+      $reqopt_sym = exists $spec->{optional} && !$spec->{optional} ? '=' : ':';
+      $type_sym = 's'  if $type == SCALAR;
+      $type_sym = 's@' if $type == ARRAYREF or $type == ( SCALAR | ARRAYREF );
+      $neg_sym  = '!'  if $type == BOOLEAN and $spec->{default} and $spec->{default} eq '1';
 
       # No required/optional symbol without a type to follow it
-      $ro_sym = '' unless $t_sym;
+      $reqopt_sym = '' unless $type_sym;
   
-      my $spec = join '', $attr, $ro_sym, $t_sym, $n_sym;
+      my $spec = join '', $attr, $reqopt_sym, $type_sym, $neg_sym;
       push @specs, $spec;
     }
   }
@@ -161,7 +162,7 @@ Commonly used options:
     --help               Show this message and exit
 
     Additional options, including those corresponding to dialect
-    attributes, are also supported. Consult the C<html2wiki> man page for
+    attributes, are also supported. Consult the html2wiki man page for
     details.
 
 Example:

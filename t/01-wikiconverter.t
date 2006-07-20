@@ -3,20 +3,31 @@
 package HTML::WikiConverter::MyPerfectWiki;
 use base 'HTML::WikiConverter';
 
-sub rules { {
-  b => { start => '**', end => '**' },
-  i => { start => '//', end => '//' },
-  a => { replace => \&_a },
-  blockquote => { trim => 'both', block => 1, line_format => 'multi', line_prefix => '>' },
-  strong => { alias => 'b' },
-  em => { alias => 'i' },
-  img => { replace => \&_img },
-  funny => { start => '~~', end => '~~' },
-} }
+sub rules {
+  my $self = shift;
+
+  my %rules = (
+    b => { start => '**', end => '**' },
+    i => { start => '//', end => '//' },
+    a => { replace => \&_a },
+    blockquote => { trim => 'both', block => 1, line_format => 'multi', line_prefix => '>' },
+    strong => { alias => 'b' },
+    em => { alias => 'i' },
+    img => { replace => \&_img },
+    funny => { start => '~~', end => '~~' },
+    span => { preserve => 1 },
+    UNKNOWN => { preserve => 1 },
+  );
+
+  $rules{i} = { preserve => 1 } if $self->preserve_italic;
+
+  return \%rules;
+}
 
 sub attributes { {
   allow_html => { default => 0 },
-  be_cool => { default => 1 }
+  be_cool => { default => 1 },
+  preserve_italic => { default => 0 },
 } }
 
 sub _a {
@@ -58,9 +69,10 @@ sub attributes { {
 
 package main;
 
-use Test::More tests => 32;
+use Test::More tests => 50;
 use HTML::WikiConverter;
 use URI::QueryParam;
+my $have_lwp = eval "use LWP::UserAgent; 1";
 
 my $have_query_param = 0;
 BEGIN { $have_query_param = eval "use URI::QueryParam; 1" }
@@ -106,6 +118,9 @@ ok( !$@, 'dialect class outside H::WC namespace' );
 eval { my $wcx = new HTML::WikiConverter( dialect => 'MyPerfectWiki', nonexistent_attrib => 1 ) };
 ok( $@, 'non-existent attribute' );
 
+is( $wc->html2wiki( html => '<i>text</i>', preserve_italic => 1 ), '<i>text</i>', "setup rules (pt. 1)" );
+is( $wc->html2wiki( html => '<i>text</i>', preserve_italic => 0 ), '//text//', "setup rules (pt. 2)" );
+
 # Test that attributes containing references don't clobber each other
 my $wc3 = new HTML::WikiConverter( dialect => 'MySlimWiki' );
 is_deeply( $wc3->strip_tags, ['strong','em'], 'attr w/ ref (pt 1)' );
@@ -121,16 +136,16 @@ ok( $@, 'attributes do not overlap' );
 # Test attribute assignment
 #
 
-my $wc4 = new HTML::WikiConverter( dialect => 'MySlimWiki', remove_empty => 1 );
-is( $wc4->remove_empty, 1, 'set attribute via new()' );
+my $wc4 = new HTML::WikiConverter( dialect => 'MySlimWiki', strip_empty_tags => 1 );
+is( $wc4->strip_empty_tags, 1, 'set attribute via new()' );
 
-$wc4->remove_empty(0);
-is( $wc4->remove_empty, 0, 'set attribute via object method' );
+$wc4->strip_empty_tags(0);
+is( $wc4->strip_empty_tags, 0, 'set attribute via object method' );
 
-$wc4->remove_empty(1); # revert
+$wc4->strip_empty_tags(1); # revert
 is( $wc4->html2wiki( '<span></span><b>t</b>' ), '**t**', 'attribute set via object method is used in html2wiki()' );
-is( $wc4->html2wiki( '<span></span><b>t</b>', remove_empty => 0 ), '<span></span>**t**', 'attribute set in html2wiki() overrides default' );
-is( $wc4->remove_empty, 1, 'attribute set via html2wiki() only lasts for the duration of the call' );
+is( $wc4->html2wiki( '<span></span><b>t</b>', strip_empty_tags => 0 ), '<span></span>**t**', 'attribute set in html2wiki() overrides default' );
+is( $wc4->strip_empty_tags, 1, 'attribute set via html2wiki() only lasts for the duration of the call' );
 
 is( $wc4->html2wiki('<em>e</em>'), '', 'attribute set via new() has original value' );
 is( $wc4->html2wiki('<em>e</em>', strip_tags => ['strong'] ), '//e//', 'assign ref to attr inside html2wiki()' );
@@ -138,3 +153,42 @@ is( $wc4->html2wiki('<em>e</em>'), '', 'ref attr returns to original value after
 
 is( $wc4->html2wiki( html => '&lt;', escape_entities => 0 ), '<', "don't escape entities" );
 is( $wc4->html2wiki( html => '&lt;', escape_entities => 1 ), '&lt;', "escape entities" );
+
+SKIP: {
+  skip "LWP::UserAgent required for testing how content is fetched from URIs" => 4 unless $have_lwp;
+
+  is( $wc4->html2wiki( uri => 'http://diberri.dyndns.org/wikipedia/html2wiki/test.html', strip_tags => ['head'] ), '**test**', 'fetch uri, no ua' );
+  is( $wc4->user_agent->agent, $wc4->__default_ua_string, 'using default ua' );
+
+  my $ua_agent = 'html2wiki-test/0.5x';
+  my $ua = new LWP::UserAgent( agent => $ua_agent );
+  $wc4->user_agent($ua);
+
+  is( $wc4->html2wiki( uri => 'http://diberri.dyndns.org/wikipedia/html2wiki/test.html', strip_tags => ['head'] ), '**test**', 'fetch uri w/ ua' );
+  is( $wc4->user_agent->agent, $ua_agent, 'using user-specified ua' );
+};
+
+eval { $wc4->html2wiki( url => '...' ) };
+ok( $@ =~ /not a valid argument/, 'url not a valid argument to html2wiki()' );
+
+eval { $wc4->base_url('...') };
+ok( $@ =~ /'base_url' is not a valid attribute/, 'base_url not a valid attribute' );
+
+eval { $wc4->wiki_url('...') };
+ok( $@ =~ /'wiki_url' is not a valid attribute/, 'wiki_url not a valid attribute' );
+
+is( $wc4->html2wiki( html => "<i>\n<p>\n</p>\n</b>", strip_empty_tags => 1 ), '', 'remove empty <i>' );
+is( $wc4->html2wiki( html => "<i>\n<p>\n</p>\n</b>", strip_empty_tags => 0 ), '// //', 'no remove empty <i>' );
+
+is( $wc4->html2wiki( html => '<font style="font-weight:bold">text</font>' ), '**text**', 'normalize bold css' );
+is( $wc4->html2wiki( html => '<font style="font-style:italic">text</font>' ), '//text//', 'normalize italic css' );
+
+is( $wc4->html2wiki( html => '<span>text</span>', passthrough_naked_tags => ['span'] ), 'text', 'passthrough naked tags (ie, tags without attrs)' );
+
+is( $wc->html2wiki( html => '<unknowntag>text</unknowntag>' ), '<unknowntag>text</unknowntag>', 'UNKNOWN preserve' );
+
+is( $wc->html2wiki( html => '<div>text</div>' ), 'text', "known html tags that have no rule are passed through automatically by __wikify" );
+
+is( $wc->html2wiki( html => '<sold>text</sold>', passthrough_naked_tags => 0 ), '<sold>text</sold>', "keep naked html tags" );
+
+is( $wc->html2wiki( html => '<span>text</span>' ), '<span>text</span>', 'hmm' );
