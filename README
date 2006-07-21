@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.60
+HTML::WikiConverter version 0.61
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
@@ -59,12 +59,19 @@ There's also a web interface if you're so inclined:
 PREREQUISITES
 
   * Test::More
+  * Class::Data::Inheritable
+  * Params::Validate
+  * URI and URI::Escape
   * HTML::TreeBuilder
   * HTML::Tagset
   * HTML::Entities
-  * URI and URI::Escape
-  * Class::Data::Inheritable
-  * Params::Validate
+  * HTML::Element
+  * CSS
+
+CHANGES IN VERSION 0.61
+
+  * (bug #20607) Add missing CSS and HTML::Element prerequisites
+    so that 'make test' is successful
 
 CHANGES IN VERSION 0.60
 

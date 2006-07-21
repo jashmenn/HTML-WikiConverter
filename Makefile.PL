@@ -10,10 +10,12 @@ WriteMakefile(
     PL_FILES            => {},
     EXE_FILES           => [ 'bin/html2wiki' ],
     PREREQ_PM => {
-        'Pod::Usage'     => 1.16,
         'Test::More'     => 0,
         'HTML::Tree'     => 3.18,
+        'HTML::Element'  => 0,
+        'CSS'            => 0,
         'URI'            => 1.35,
+        'Pod::Usage'     => 1.16,
         'URI::Escape'    => 0,
         'HTML::Entities' => 1.27,
         'HTML::Tagset'   => 3.04,

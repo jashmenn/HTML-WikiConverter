@@ -1,7 +1,13 @@
 # Change log for HTML::WikiConverter
 
+version: 0.61
+date:   Fri Jul 21 10:00:00 EST 2006
+changes:
+  - add HTML::Element and CSS prereqs for Normalizer.pm so that
+    'make test' succeeds
+
 version: 0.60
-date:    ???
+date:    Thu Jul 20 18:00:00 EST 2006
 changes:
   - add CSS-to-HTML normalization so, for example,
     '<font style="font-weight:bold">text</font>' will be interpreted

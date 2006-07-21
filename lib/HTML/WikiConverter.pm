@@ -15,7 +15,7 @@ use Carp;
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.60';
+our $VERSION = '0.61';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -611,7 +611,7 @@ sub __extract_wiki_page {
   if( ref $wiki_uri eq 'Regexp' ) {
     return $uri =~ $wiki_uri ? $1 : undef;
   } elsif( ref $wiki_uri eq 'CODE' ) {
-    return $wiki_uri->( $self, $uri );
+    return $wiki_uri->( $self, URI->new($uri) );
   } else {
     return undef unless index( $uri, $wiki_uri ) == 0;
     return undef unless length $uri > length $wiki_uri;

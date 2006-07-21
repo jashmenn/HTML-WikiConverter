@@ -71,11 +71,9 @@ package main;
 
 use Test::More tests => 50;
 use HTML::WikiConverter;
-use URI::QueryParam;
-my $have_lwp = eval "use LWP::UserAgent; 1";
 
-my $have_query_param = 0;
-BEGIN { $have_query_param = eval "use URI::QueryParam; 1" }
+my $have_lwp = eval "use LWP::UserAgent; 1";
+my $have_query_param = eval "use URI::QueryParam; 1";
 
 my $wc = new HTML::WikiConverter(
   dialect => 'MyPerfectWiki',
