@@ -1,4 +1,4 @@
-HTML::WikiConverter version 0.61
+HTML::WikiConverter version 0.62
 ================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
@@ -67,6 +67,12 @@ PREREQUISITES
   * HTML::Entities
   * HTML::Element
   * CSS
+
+CHANGES IN VERSION 0.62
+
+  * Blocked elements are not blocked if they are contained within a
+    blocked element (with much thanks to Dominick Bellizzi for the
+    patch)
 
 CHANGES IN VERSION 0.61
 

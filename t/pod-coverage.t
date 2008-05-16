@@ -9,6 +9,7 @@ all_pod_coverage_ok( { also_private => [
      get_elem_contents
     |get_wiki_page
     |get_attr_str
+    |elem_within_block
     |is_camel_case
     |rule
     |rules

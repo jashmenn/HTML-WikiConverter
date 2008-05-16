@@ -1,5 +1,12 @@
 # Change log for HTML::WikiConverter
 
+version: 0.62
+date:    ???
+changes:
+  - blocked elements are not blocked if they are contained within a blocked element
+    (with much thanks to Dominick Bellizzi for the patch)
+  - rules_for_tag() now dereferences the 'alias' subrule
+
 version: 0.61
 date:   Fri Jul 21 10:00:00 EST 2006
 changes:

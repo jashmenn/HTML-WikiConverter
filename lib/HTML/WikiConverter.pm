@@ -15,7 +15,7 @@ use Carp;
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.61';
+our $VERSION = '0.62';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -26,30 +26,26 @@ HTML::WikiConverter - Convert HTML to wiki markup
 
   use HTML::WikiConverter;
   my $wc = new HTML::WikiConverter( dialect => 'MediaWiki' );
+  print $wc->html2wiki( html => '<b>text</b>' ), "\n\n";
 
-  # Provide HTML directly
-  print $wc->html2wiki( $html );
+  # A more complete example
 
-  # ...which is the same as
-  print $wc->html2wiki( html => $html );
+  my $html = qq(
+    <p><i>Italic</i>, <b>bold</b>, <span style="font-weight:bold">also bold</span>, etc.</p>
+  );
 
-  # Or fetch it from a file
-  print $wc->html2wiki( file => $path );
-
-  # ...slurp it all at once rather than parsing incrementally
-  print $wc->html2wiki( file => $path, slurp => 1 );
-
-  # Or from a URI
-  print $wc->html2wiki( uri => $uri );
-
-  # Get a list of installed dialects
   my @dialects = HTML::WikiConverter->available_dialects;
+  foreach my $dialect ( @dialects ) {
+    my $wc = new HTML::WikiConverter( dialect => $dialect );
+    my $wiki = $wc->html2wiki( html => $html );
+    printf "The %s dialect gives:\n\n%s\n\n", $dialect, $wiki;
+  }
 
 =head1 DESCRIPTION
 
-C<HTML::WikiConverter> is an HTML to wiki converter. It can convert HTML
-source into a variety of wiki markups, called wiki "dialects". The following
-dialects are supported:
+C<HTML::WikiConverter> is an HTML to wiki converter. It can convert
+HTML source into a variety of wiki markups, called wiki
+"dialects". The following dialects are supported:
 
   DokuWiki
   Kwiki
@@ -244,7 +240,10 @@ sub html2wiki {
   # Preprocess, save tree and parsed HTML
   $self->__root( $tree );
   $self->__preprocess_tree();
-  $self->parsed_html( $tree->as_HTML(undef, '  ') );
+
+  $self->__root->deobjectify_text();
+  $self->parsed_html( $tree->as_HTML(undef, '  ', {}) );
+  $self->__root->objectify_text();
 
   # Convert and preprocess
   my $output = $self->__wikify($tree);
@@ -277,7 +276,6 @@ sub __wikify {
     return '<!--' . $node->attr('text') . '-->';
   } else {
     my $rules = $self->rules_for_tag( $node->tag );
-    $rules = $self->__rules->{$rules->{alias}} if $rules->{alias};
 
     return $self->__subst($rules->{replace}, $node, $rules) if exists $rules->{replace};
 
@@ -320,13 +318,21 @@ sub __wikify {
     $output = $output.$self->__subst($rules->{end}, $node, $rules) if $rules->{end};
     
     # Nested block elements themselves are not blocked...
-    $output = "\n\n$output\n\n" if $rules->{block} && ! $node->parent->look_up( _tag => $node->tag );
+    $output = "\n\n$output\n\n" if $rules->{block} && ! $self->elem_within_block($node);
 
     # ...but they are put on their own line
     $output = "\n$output" if $rules->{block} and $node->parent->look_up( _tag => $node->tag ) and $trim ne 'none';
 
     return $output;
   }
+}
+
+sub elem_within_block {
+  my( $self, $node ) = @_;
+  foreach my $p ( $node->lineage ) {
+    return 1 if $self->rules_for_tag($p->tag || '')->{block};
+  }
+  return 0;
 }
 
 sub __subst {
@@ -409,7 +415,7 @@ sub __fetch_html_from_uri {
   my( $self, $uri ) = @_;
   my $ua = $self->__user_agent;
   my $res = $ua->get($uri);
-  croak sprintf "request for <$uri> failed with status %s", $res->status unless $res->is_success;
+  croak "request for <$uri> failed" unless $res->is_success;
   my $encoding = $self->encoding || $self->__guess_encoding($res) || 'utf-8';
   my $html = encode( $self->encoding, decode( $encoding, $res->content ) );
   return $html;
@@ -652,9 +658,11 @@ sub given_html { shift->_attr( { internal => 1 }, __given_html => @_ ) }
 
   my $parsed_html = $wc->parsed_html;
 
-Returns L<HTML::TreeBuilder>'s string representation of the
-last-parsed syntax tree, showing how the input HTML was parsed
-internally. Also useful for debugging.
+Returns a string containing the post-processed HTML from the last
+C<html2wiki> call. Post-processing includes parsing by
+L<HTML::TreeBuilder>, CSS normalization by
+L<HTML::WikiConverter::Normalizer>, and calls to the C<preprocess> and
+C<preprocess_tree> dialect methods.
 
 =cut
 
@@ -689,12 +697,18 @@ sub available_dialects {
   my $rules = $wc->rules_for_tag( $tag );
 
 Returns the rules that will be used for converting elements of the
-given tag. Note that the rules used for a particular tag may depend on
-the current set of attributes being used.
+given tag. Follows C<alias> references. Note that the rules used for a
+particular tag may depend on the current set of attributes being used.
 
 =cut
 
 sub rules_for_tag {
+  my( $self, $tag ) = @_;
+  my $rules = $self->__rules_for_tag($tag);
+  return $rules->{alias} ? $self->__rules_for_tag( $rules->{alias} ) : $rules;
+}
+
+sub __rules_for_tag {
   my( $self, $tag ) = @_;
   return $self->__rules->{$tag} if $self->__rules->{$tag};
   return $self->__rules->{UNKNOWN} if $self->__rules->{UNKNOWN} and !$isKnownTag{$tag};
