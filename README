@@ -1,11 +1,11 @@
-HTML::WikiConverter version 0.62
-================================
+HTML::WikiConverter version
+===========================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
 HTML source into a variety of wiki dialects. It's aimed at folks who
 are converting vanilla HTML websites into wikis.
 
-The following dialects are supported:
+The following dialects (and more) are supported:
 
   DokuWiki
   Kwiki
@@ -68,42 +68,9 @@ PREREQUISITES
   * HTML::Element
   * CSS
 
-CHANGES IN VERSION 0.62
-
-  * Blocked elements are not blocked if they are contained within a
-    blocked element (with much thanks to Dominick Bellizzi for the
-    patch)
-
-CHANGES IN VERSION 0.61
-
-  * (bug #20607) Add missing CSS and HTML::Element prerequisites
-    so that 'make test' is successful
-
-CHANGES IN VERSION 0.60
-
-  * Add CSS-to-HTML normalization so, for example,
-    '<font style="font-weight:bold">text</font>' will be interpreted
-    as '<b>text</b>' before conversion to wiki markup. This can be
-    disabled by passing the 'normalize' attribute a false value.
-  * Non-semantic tags with no attributes can be replaced with their
-    content by enabling the 'passthrough_naked_tags' attribute.
-  * Rules are now loaded on demand so they can respond to attribute
-    modification events.
-  * The new "UNKNOWN" rule acts as a catch-all for unknown tags.
-  * HTML can now be fetched from a URI by passing a 'uri' argument to
-    the html2wiki() method.
-  * The user agent used to fetch content from a URI can be specified
-    in the 'user_agent' attribute.
-  * Dialect authors may now use the 'passthrough' subrule for replacing
-    tags with their contents at conversion time.
-  * The 'remove_empty' attribute is now called 'strip_empty_tags' for
-    consistency with other attributes. It behaves slightly different
-    too, considering elements empty if they contain only whitespace.
-
 BUGS
 
-I made the mistake of packing too many changes into the 0.60 release,
-so there will likely be some bugs. Please report them to rt.cpan.org.
+This module is far from perfect. Please report bugs to rt.cpan.org.
 
 THANKS TO
 
@@ -115,7 +82,7 @@ THANKS TO
 
 COPYRIGHT
 
-Copyright (c) 2004-2006 David J. Iberri <diberri@cpan.org>
+Copyright (c) David J. Iberri <diberri@cpan.org>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

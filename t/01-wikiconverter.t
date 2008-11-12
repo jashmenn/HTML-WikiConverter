@@ -10,7 +10,9 @@ sub rules {
     b => { start => '**', end => '**' },
     i => { start => '//', end => '//' },
     a => { replace => \&_a },
+    p => { block => 1 },
     blockquote => { trim => 'both', block => 1, line_format => 'multi', line_prefix => '>' },
+    table => { block => 1, line_format => 'blocks' },
     strong => { alias => 'b' },
     em => { alias => 'i' },
     img => { replace => \&_img },
@@ -69,7 +71,7 @@ sub attributes { {
 
 package main;
 
-use Test::More tests => 50;
+use Test::More tests => 51;
 use HTML::WikiConverter;
 
 my $have_lwp = eval "use LWP::UserAgent; 1";
@@ -176,7 +178,7 @@ eval { $wc4->wiki_url('...') };
 ok( $@ =~ /'wiki_url' is not a valid attribute/, 'wiki_url not a valid attribute' );
 
 is( $wc4->html2wiki( html => "<i>\n<p>\n</p>\n</b>", strip_empty_tags => 1 ), '', 'remove empty <i>' );
-is( $wc4->html2wiki( html => "<i>\n<p>\n</p>\n</b>", strip_empty_tags => 0 ), '// //', 'no remove empty <i>' );
+is( $wc4->html2wiki( html => "<i>\n<p>\n</p>\n</b>", strip_empty_tags => 0 ), '// //', 'do not remove empty <i>' );
 
 is( $wc4->html2wiki( html => '<font style="font-weight:bold">text</font>' ), '**text**', 'normalize bold css' );
 is( $wc4->html2wiki( html => '<font style="font-style:italic">text</font>' ), '//text//', 'normalize italic css' );
@@ -190,3 +192,7 @@ is( $wc->html2wiki( html => '<div>text</div>' ), 'text', "known html tags that h
 is( $wc->html2wiki( html => '<sold>text</sold>', passthrough_naked_tags => 0 ), '<sold>text</sold>', "keep naked html tags" );
 
 is( $wc->html2wiki( html => '<span>text</span>' ), '<span>text</span>', 'hmm' );
+
+is( $wc->html2wiki( html => qq{
+<table><tr><td><p>p1</p><p>p2</p></td></tr></table>
+} ), "p1\n\np2", 'table p1 p2' );

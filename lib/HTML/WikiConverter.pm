@@ -15,7 +15,7 @@ use Carp;
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.62';
+our $VERSION = '0.63';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -157,7 +157,7 @@ sub AUTOLOAD {
   croak "Can't locate method '$attr' in package ".ref($self);
 }
 
-# So AUTOLOAD doesn't intercept calls to this method
+# So AUTOLOAD doesn't intercept calls to destruction method
 sub DESTROY { }
 
 sub __slurp {
@@ -294,12 +294,12 @@ sub __wikify {
     # Unspecified tags have their whitespace preserved (this allows
     # 'html' and 'body' tags [among others] to keep formatting when
     # inner tags like 'pre' need to preserve whitespace).
-    my $trim = exists $rules->{trim} ? $rules->{trim} : 'none';
+    my $trim = exists $rules->{trim} ? $rules->{trim} : 'none'; # can't this just be $rules->{trim} || 'none'?
     $output =~ s/^\s+// if $trim eq 'both' or $trim eq 'leading';
     $output =~ s/\s+$// if $trim eq 'both' or $trim eq 'trailing';
 
     my $lf = $rules->{line_format} || 'none';
-    $output =~ s/^\s*\n/\n/gm  if $lf ne 'none';
+    $output =~ s/^\s*\n/\n/gm if $lf ne 'none';
     if( $lf eq 'blocks' ) {
       $output =~ s/\n{3,}/\n\n/g;
     } elsif( $lf eq 'multi' ) {
@@ -317,8 +317,14 @@ sub __wikify {
     $output = $self->__subst($rules->{start}, $node, $rules).$output if $rules->{start};
     $output = $output.$self->__subst($rules->{end}, $node, $rules) if $rules->{end};
     
-    # Nested block elements themselves are not blocked...
-    $output = "\n\n$output\n\n" if $rules->{block} && ! $self->elem_within_block($node);
+    # If the current element is a block and is contained within
+    # another block element, then we will not block the current
+    # element by default. However, if the current element is a block
+    # and is contained within another block element that specifies a
+    # line_format of 'blocks', then we will block the current element.
+    $output = "\n\n$output\n\n" if $rules->{block} &&
+      ( ! $self->elem_search_lineage( $node, { block => 1 } ) or
+          $self->elem_search_lineage( $node, { line_format => 'blocks' } ) );
 
     # ...but they are put on their own line
     $output = "\n$output" if $rules->{block} and $node->parent->look_up( _tag => $node->tag ) and $trim ne 'none';
@@ -327,12 +333,48 @@ sub __wikify {
   }
 }
 
+# Deprecated. Instead use elem_search_lineage( $node, { block => 1 } ).
 sub elem_within_block {
   my( $self, $node ) = @_;
-  foreach my $p ( $node->lineage ) {
-    return 1 if $self->rules_for_tag($p->tag || '')->{block};
+  foreach my $n ( $node->lineage ) {
+    return $n if $self->rules_for_tag($n->tag || '')->{block};
   }
   return 0;
+}
+
+=head2 elem_search_lineage
+
+  my $ancestor = $wc->elem_search_lineage( $node, \%rules );
+
+Searches the lineage of C<$node> and returns the first ancestor node
+that has rules matching those specified in C<%rules>, or C<undef> if
+no matching node is found.
+
+For example, to find out whether C<$node> has an ancestor with rules
+matching C<{ block =E<gt>1 }>, one could use:
+
+  if( $wc->elem_search_lineage( $node, { block => 1 } ) ) {
+    # do something
+  }
+
+=cut
+
+sub elem_search_lineage {
+  my( $self, $node, $search_rules ) = @_;
+
+  foreach my $n ( $node->lineage ) {
+    my $rules = $self->rules_for_tag( $n->tag );
+
+    my $matched = 1;
+    while( my($k,$v) = each %$search_rules ) {
+      my $rule_value = $rules->{$k} || '';
+      $matched = 0 unless $v eq $rule_value;
+    }
+
+    return $n if $matched;
+  }
+
+  return undef;
 }
 
 sub __subst {
@@ -402,7 +444,8 @@ sub __passthrough_naked_tags {
   return @tags;
 }
 
-sub __default_passthrough_naked_tags { qw/ span div font / }
+# XXX: see http://rt.cpan.org/Ticket/Display.html?id=28402
+sub __default_passthrough_naked_tags { qw/ tbody thead span div font / }
 
 sub __elem_is_empty {
   my( $self, $node ) = @_;
@@ -755,7 +798,7 @@ automatically encoded into their corresponding HTML entities, a
 feature enabled by giving the C<escape_entities> a true value.
 Defaults to true.
 
-head2 passthrough_naked_tags
+=head2 passthrough_naked_tags
 
 Boolean indicating whether tags with no attributes ("naked" tags)
 should be removed and replaced with their content. By default, this
@@ -931,7 +974,7 @@ behind the new C<attributes()> implementation.
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2006 David J. Iberri, all rights reserved.
+Copyright (c) David J. Iberri, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

@@ -1,20 +1,26 @@
 # Change log for HTML::WikiConverter
 
+version: 0.63
+date:    2008-11-11
+changes:
+  - improved support for nested blocked elements (needed, e.g., for
+    MediaWiki support of 'p' elements within table cells, bug #37911)
+
 version: 0.62
-date:    ???
+date:    2008-05-16
 changes:
   - blocked elements are not blocked if they are contained within a blocked element
     (with much thanks to Dominick Bellizzi for the patch)
   - rules_for_tag() now dereferences the 'alias' subrule
 
 version: 0.61
-date:   Fri Jul 21 10:00:00 EST 2006
+date:   2006-07-21
 changes:
   - add HTML::Element and CSS prereqs for Normalizer.pm so that
     'make test' succeeds
 
 version: 0.60
-date:    Thu Jul 20 18:00:00 EST 2006
+date:    2006-07-20
 changes:
   - add CSS-to-HTML normalization so, for example,
     '<font style="font-weight:bold">text</font>' will be interpreted
@@ -39,7 +45,7 @@ changes:
   - documentation tweaks, including better synopsis [todo]
 
 version: 0.55
-date:    Thu Jun 08 17:00:00 EST 2006
+date:    2006-06-08
 changes:
   - (bug #19429) add "escape_entities" attribute
   - html2wiki utility accepts command-line options for all dialect
@@ -49,13 +55,13 @@ changes:
   - improved error messages using carp/croak
 
 version: 0.54
-date:    Wed Jun 07 16:00:00 EST 2006
+date:    2006-06-07
 changes:
   - (bug #19046) allow lone '0' in text (previously such strings were assumed empty)
   - (bug #19046) element attributes must be containined on a single line
 
 version: 0.53
-date:    Sat Jun 03 23:00:00 EST 2006
+date:    2006-06-03
 changes:
   - revert "dialects now inherit via 'use HTML::WikiConverter -dialect;'" change
   - lots of documentation tweaks
@@ -65,7 +71,7 @@ changes:
   - add eof() call after parse()
 
 version: 0.52
-date:    Fri Mar 03 23:45:00 EST 2006
+date:    2006-03-03
 changes:
   - document the 'preprocess' attribute
   - remove 'wiki_page_extractor' attribute
@@ -88,7 +94,7 @@ changes:
     dialect modules
 
 version: 0.51
-date:    Sun Jan 29 01:43:00 EST 2006
+date:    2006-01-29
 changes:
   - add available_dialects() method, with thanks to Tatsuhiko Miyagawa
     for the code and suggestions
@@ -108,17 +114,17 @@ changes:
     in URIs
 
 version: 0.50
-date:    Tue Jan 10 17:35 EST 2006
+date:    2006-01-10
 changes:
   - separate each dialect into is own CPAN package for maintainability
 
 version: 0.41
-date:    Mon Jan 9 10:46:00 EST 2006
+date:    2006-01-09
 changes:
   - update documentation (no code changes)
 
 version: 0.40
-date:    Mon Jan 9 12:56:00 EST 2006
+date:    2006-01-09
 changes:
   - (bug 13561) support multiple encodings via 'encoding' attribute
   - (bug 13106) DokuWiki: rename from DocuWiki
@@ -131,7 +137,7 @@ changes:
   - 'wrap_in_html' attribute now enabled by default in H::WC
 
 version: 0.30
-date:    Fri Jun 3 15:55:00 PDT 2005
+date:    2005-06-03
 changes:
   - add support for WakkaWiki, SnipSnap, Oddmuse, and TikiWiki (see http://c2.com/cgi/wiki?TopTenWikiEngines)
   - add DokuWiki support for links, blockquotes, images, and tables
@@ -147,7 +153,7 @@ changes:
   - lots of documentation fixes
 
 version: 0.23
-date:    Sat May 22 02:19:00 PDT 2005
+date:    2005-05-22
 changes:
   - add DokuWiki dialect (with thanks to Thomas J. Messenger)
   - (bug 12441) allow dialects to post-process wiki markup
@@ -158,14 +164,14 @@ changes:
   - (bug 12433) MediaWiki: added complete set of whitelisted tags and attributes from Sanitizer.php
 
 version: 0.22
-date:    Mon Apr 25 09:04:31 PDT 2005
+date:    2005-04-25
 changes:
   - (bug 12393) added 'wrap_in_html' option to wrap HTML input in <html> and </html> prior to wiki conversion
   - (bug 12303) MediaWiki: bracketed content is nowiki-escaped if it resembles an external link reference
   - (bug 12438) PmWiki: add <td> whitespace trimming
 
 version: 0.21
-date:    Thu Mar 17 13:36:00 PDT 2005
+date:    2005-03-17
 changes:
   - misc. documentation fixes
   - use '' as default return value from base_uri() method
@@ -196,13 +202,13 @@ changes:
       - add <caption> preprocessing as in Kwiki
 
 version: 0.20
-date:    Sat Mar 12 00:59:29 PDT 2005
+date:    2005-03-12
 changes:
   - complete rewrite, significant API changes
   - added support for Kwiki, MediaWiki, MoinMoin, PhpWiki, and UseMod
 
 version: 0.17
-date:    Wed July 7 12:40:33 PDT 2004
+date:    2004-07-07
 changes:
   - update test suite
   - remove warnings reported by cpan testers
@@ -222,7 +228,7 @@ changes:
       - now uses warnings, strict
 
 version: 0.16
-date:    Fri May 28 12:33:14 PDT 2004
+date:    2004-05-28
 changes:
   - Added 'elem_style_attr_props' method for parsing the STYLE attribute
   - Tags that are meant to be stripped (e.g. HTML, META, HEAD) no longer need an empty replacement handler (they can simply be excluded from the list of tag handlers)
@@ -239,7 +245,7 @@ changes:
   - MW: Added new realworld test (my User: page)
 
 version: 0.15
-date:    Thu May 20 8:50:37 PDT 2004
+date:    2004-05-20
 changes:
   - Split module into several separate modules
   - HTML::WikiConverter is still the main interface
@@ -253,7 +259,7 @@ changes:
   - Now supports multiply-indented blocks
 
 version: 0.14
-date:    Sun May 17 7:18:09 PDT 2004
+date:    2004-05-17
 changes:
   - 'wikify_default' now called 'passthru'
   - NOWIKI blocks are no longer preserved
@@ -263,7 +269,7 @@ changes:
   - Can now handle "[[language]]s" links (with trailing characters)
 
 version: 0.12
-date:    Thu May 14 5:23:08 PDT 2004
+date:    2004-05-14
 changes:
   - Bug fix: removed reference to non-existent 'has_parent' method within '_elem_has_ancestor' function
   - Bug fix: fixed potential bug in 'wikify_list_item' which used $node->parent->tag eq '...' instead of _elem_has_ancestor($node, '...')
@@ -277,7 +283,7 @@ changes:
   - Added more tests to t/test.t
 
 version: 0.11
-date:    Sun May 10 1:01:09 PDT 2004
+date:    2004-05-10
 changes:
   - added wikify_default code handler for tags that should be preserved.
   - Added wikify_span
@@ -285,6 +291,6 @@ changes:
   - SPAN tags are converted into FONT if possible
 
 version: 0.10
-date:    Thu May 07 3:10:04 PDT 2004
+date:    2004-05-07
 changes:
   - Initial release
