@@ -1,5 +1,5 @@
-HTML::WikiConverter version
-===========================
+HTML::WikiConverter readme
+==========================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
 HTML source into a variety of wiki dialects. It's aimed at folks who
@@ -8,6 +8,7 @@ are converting vanilla HTML websites into wikis.
 The following dialects (and more) are supported:
 
   DokuWiki
+  GoogleCode
   Kwiki
   Markdown
   MediaWiki
@@ -17,6 +18,7 @@ The following dialects (and more) are supported:
   PhpWiki
   PmWiki
   SnipSnap
+  Socialtext
   TikiWiki
   UseMod
   WakkaWiki
@@ -24,10 +26,10 @@ The following dialects (and more) are supported:
 
 INSTALLATION
 
-The HTML::WikiConverter module is just an interface; to actually
-perform HTML-to-wiki conversion, you can either install individual
-dialect modules (see below) or install Bundle::HTMLWikiConverter to
-get all of the dialect modules in one shot:
+The HTML::WikiConverter module is just an interface; you must select
+the wiki dialects you would like to use. You may install dialect
+modules individually (see below) or install Bundle::HTMLWikiConverter
+to get most of the dialect modules in one shot:
 
   % perl -MCPAN -e 'install Bundle::HTMLWikiConverter'
 
@@ -50,15 +52,22 @@ Converting HTML to wiki markup is easy:
 
 The included html2wiki utility converts on the command line:
 
-  % html2wiki --dialect MediaWiki input.html > output.mw
+  % html2wiki --dialect MediaWiki \
+              --base-uri http://en.wikipedia.org \
+              --wiki-uri /wiki/ \
+              input.html > output.mw
 
-There's also a web interface if you're so inclined:
-
-  http://diberri.dyndns.org/wikipedia/html2wiki/
+A web application is also provided with this distribution, called
+HTML::WikiConverter::WebApp. It provides a web interface to this
+module and any installed dialects. Detailed instructions on
+installation and usage are provided in the INSTALL file.
 
 PREREQUISITES
 
+The following are required for a basic installation:
+
   * Test::More
+  * Pod::Usage
   * Class::Data::Inheritable
   * Params::Validate
   * URI and URI::Escape
@@ -67,6 +76,9 @@ PREREQUISITES
   * HTML::Entities
   * HTML::Element
   * CSS
+
+CGI::Application is required if you will be using the installed web
+application, HTML::WikiConverter::WebApp.
 
 BUGS
 

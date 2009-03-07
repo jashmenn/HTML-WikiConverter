@@ -132,7 +132,15 @@ sub handlers { [
   { type => 'css',  name => 'text-decoration', value => 'underline', new_tag => 'u' },
   { type => 'css',  name => 'font-style', value => 'italic', new_tag => 'i' },
   { type => 'attr', name => 'align', value => 'center', tag => [ qw/ div p / ], new_tag => 'center' },
+
+#  { type => 'attr', tag =>  'font', attr => 'size', value => '*', new_tag => 'span', style => 'font-size' },
 ] }
+
+sub _new_handlers {
+  span_to_font => {
+    xpath => '//[@style[contains(., "font-size")]]',
+  },
+}
 
 sub _normalize_color {
   my( $self, $color ) = @_;

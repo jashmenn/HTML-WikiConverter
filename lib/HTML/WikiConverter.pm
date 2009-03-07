@@ -15,7 +15,7 @@ use Carp;
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.63';
+our $VERSION = '0.65';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -76,7 +76,7 @@ appreciated.
 Returns a converter for the specified wiki dialect. Croaks if
 C<$dialect> is not provided or its dialect module is not installed on
 your system. Additional attributes may be specified in C<%attrs>; see
-L</"ATTRIBUTES"> for a list of recognized attributes.
+L</"ATTRIBUTES"> for a complete list.
 
 =cut
 
@@ -97,7 +97,8 @@ sub __new_dialect {
   foreach my $dialect_class ( @dialect_classes ) {
     return $dialect_class->new( %opts ) if eval "use $dialect_class; 1" or $dialect_class->isa($pkg);
   }
-  croak "Dialect '$opts{dialect}' could not be loaded (tried @dialect_classes). Error: $@";
+  my $dc_list = join ', ', @dialect_classes;
+  croak "Dialect '$opts{dialect}' could not be loaded (tried $dc_list). Error: $@";
 }
 
 sub __setup {
@@ -195,6 +196,7 @@ C<html2wiki()> call.
 sub html2wiki {
   my $self = shift;
 
+  # Assumes that if @_ is odd-numbered, its first element is html
   my %args = @_ % 2 ? ( html => +shift, @_ ) : @_;
 
   my %common_arg_errors = ( url => 'uri', base_url => 'base_uri', wiki_url => 'wiki_uri' );
@@ -444,7 +446,7 @@ sub __passthrough_naked_tags {
   return @tags;
 }
 
-# XXX: see http://rt.cpan.org/Ticket/Display.html?id=28402
+# (bug #28402)
 sub __default_passthrough_naked_tags { qw/ tbody thead span div font / }
 
 sub __elem_is_empty {
@@ -590,6 +592,7 @@ sub __load_rules {
   $self->__rules( $self->rules );
 }
 
+# Rules for validating rules
 my %meta_rules = (
   trim        => { range => [ qw/ none both leading trailing / ] },
   line_format => { range => [ qw/ none single multi blocks / ] },
@@ -646,7 +649,7 @@ sub get_wiki_page {
   my( $self, $uri ) = @_;
   my @wiki_uris = ref $self->wiki_uri eq 'ARRAY' ? @{$self->wiki_uri} : $self->wiki_uri;
   foreach my $wiki_uri ( @wiki_uris ) {
-    my $page = $self->__extract_wiki_page( $uri => $wiki_uri );
+    my $page = $self->__extract_wiki_page( $uri, $wiki_uri );
     return $page if $page;
   }
 
@@ -662,6 +665,9 @@ sub __extract_wiki_page {
   } elsif( ref $wiki_uri eq 'CODE' ) {
     return $wiki_uri->( $self, URI->new($uri) );
   } else {
+    # Ensure $wiki_uri is absolute
+    $wiki_uri = URI->new_abs( $wiki_uri, $self->base_uri )->as_string;
+
     return undef unless index( $uri, $wiki_uri ) == 0;
     return undef unless length $uri > length $wiki_uri;
     return substr( $uri, length $wiki_uri );
@@ -723,12 +729,18 @@ in C<@INC> for C<HTML::WikiConverter::> modules.
 sub available_dialects {
   my @dialects;
 
+  my %seen;
   for my $inc ( @INC ) {
     my $dir = File::Spec->catfile( $inc, 'HTML', 'WikiConverter' );
     my $dh  = DirHandle->new( $dir ) or next;
     while ( my $f = $dh->read ) {
       next unless $f =~ /^(\w+)\.pm$/;
-      push @dialects, $1 unless $1 eq 'Normalizer';
+      my $dialect = $1;
+
+      next if $seen{$dialect}++;
+      next if $dialect eq 'Normalizer' or $dialect eq 'WebApp';
+
+      push @dialects, $dialect;
     }
   }
 
@@ -793,9 +805,8 @@ C<html2wiki> method. Defaults to C<"utf8">.
 
 =head2 escape_entities
 
-Potentially unsafe characters found within text nodes can be
-automatically encoded into their corresponding HTML entities, a
-feature enabled by giving the C<escape_entities> a true value.
+Passing C<escape_entities> a true value uses L<HTML::Entities> to
+encode potentially unsafe 'E<lt>', 'E<gt>', and 'E<amp>' characters.
 Defaults to true.
 
 =head2 passthrough_naked_tags
@@ -855,11 +866,16 @@ depends on whether the C<wiki_uri> has been set to a string, regexp,
 or coderef. The default is C<undef>, meaning that all links will be
 treated as external links by default.
 
-If C<wiki_uri> is a string, it is assumed that URIs to wiki pages are
-created by joining the C<wiki_uri> with the wiki page title. For
-example, the English Wikipedia might use
-C<"http://en.wikipedia.org/wiki/"> as the value of C<wiki_uri>. Ward's
-wiki might use C<"http://c2.com/cgi/wiki?">. 
+If C<wiki_uri> is a string, it is interpreted as a URI template, and
+it will be assumed that URIs to wiki pages are created by joining
+C<wiki_uri> with the wiki page title. For example, the English
+Wikipedia might use C<"http://en.wikipedia.org/wiki/"> as the value of
+C<wiki_uri>. Ward's wiki might use C<"http://c2.com/cgi/wiki?">. These
+examples use an absolute C<wiki_uri>, but a relative URI can be used
+as well; an absolute URI will be created based on the value of
+C<base_uri>. For example, the Wikipedia example above can be rewritten
+using C<base_uri> of C<"http://en.wikipedia.org"> and a C<wiki_uri> of
+C<"/wiki/">.
 
 C<wiki_uri> can also be a regexp that matches URIs to wiki pages and
 also extracts the page title from them. For example, the English

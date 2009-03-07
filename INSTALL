@@ -1,5 +1,5 @@
-HTML::WikiConverter installation instructions
-=============================================
+HTML::WikiConverter installation
+================================
 
 HTML::WikiConverter is an HTML to wiki converter capable of converting
 HTML source into a variety of wiki dialects. It's aimed at folks who
@@ -38,3 +38,41 @@ this, you may install into your own local directory like so:
 
   % perl Makefile.PL PREFIX=~/myperl5
   % make && make test && make install
+
+Installing the web application
+==============================
+
+Included in this distribution is HTML::WikiConverter::WebApp, which is
+a CGI::Application-based web application that interfaces with
+HTML::WikiConverter and any installed dialects. (Note that you will
+need to have CGI::Application installed to use this feature.)
+
+The H::WC::WebApp module is installed automatically. The remaining
+files necessary for the web application are in the cgi directory. To
+install these files, copy the cgi directory to your cgi-bin directory
+and provide proper file permissions to files contained therein. For
+example:
+
+  % cp -r cgi /var/www/cgi-bin/wc
+
+For permissions, something like this ought to work:
+
+  % chmod 655 /var/www/cgi-bin/wc/index.cgi
+  % chmod a+r /var/www/cgi-bin/wc/templates/*
+
+Update the %config hash in /var/www/cgi-bin/wc/index.cgi to point to
+the templates directory.
+
+  # Inside /var/www/cgi-bin/wc/index.cgi:
+  my %config = (
+    template_path => '/var/www/cgi-bin/wc/templates',
+  );
+
+The template filler should then be available via a standard URL:
+
+  http://www.yourhost.com/cgi-bin/wc/index.cgi
+
+Author
+======
+
+David J. Iberri <diberri@cpan.org>

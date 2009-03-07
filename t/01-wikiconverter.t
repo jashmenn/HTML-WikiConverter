@@ -1,6 +1,6 @@
 #!perl -T
 
-package HTML::WikiConverter::MyPerfectWiki;
+package MyPerfectWiki;
 use base 'HTML::WikiConverter';
 
 sub rules {
@@ -71,7 +71,7 @@ sub attributes { {
 
 package main;
 
-use Test::More tests => 51;
+use Test::More tests => 53;
 use HTML::WikiConverter;
 
 my $have_lwp = eval "use LWP::UserAgent; 1";
@@ -153,9 +153,11 @@ is( $wc4->html2wiki('<em>e</em>'), '', 'ref attr returns to original value after
 
 is( $wc4->html2wiki( html => '&lt;', escape_entities => 0 ), '<', "don't escape entities" );
 is( $wc4->html2wiki( html => '&lt;', escape_entities => 1 ), '&lt;', "escape entities" );
+is( $wc4->html2wiki( html => '&lt;' ), '&lt;', "escape_entities is enabled by default" );
 
 SKIP: {
   skip "LWP::UserAgent required for testing how content is fetched from URIs" => 4 unless $have_lwp;
+  skip "Couldn't fetch test website http://www.perl.org. Perhaps you don't have internet access?" => 4 unless LWP::UserAgent->new->get('http://www.perl.org')->is_success;
 
   is( $wc4->html2wiki( uri => 'http://diberri.dyndns.org/wikipedia/html2wiki/test.html', strip_tags => ['head'] ), '**test**', 'fetch uri, no ua' );
   is( $wc4->user_agent->agent, $wc4->__default_ua_string, 'using default ua' );
@@ -196,3 +198,5 @@ is( $wc->html2wiki( html => '<span>text</span>' ), '<span>text</span>', 'hmm' );
 is( $wc->html2wiki( html => qq{
 <table><tr><td><p>p1</p><p>p2</p></td></tr></table>
 } ), "p1\n\np2", 'table p1 p2' );
+
+is( $wc->html2wiki( html => '<a href="/wiki/Test">Test page</a>', base_uri => 'http://www.example.com', wiki_uri => '/wiki/' ), '[[Test|Test page]]', 'absolute wiki_uri from relative wiki_uri and base_uri' );
