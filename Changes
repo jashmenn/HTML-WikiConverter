@@ -1,5 +1,12 @@
 # Change log for HTML::WikiConverter
 
+version: 0.66
+date: 2009-03-07
+changes:
+  - fix test suite: change html2wiki/test.html to
+    html2wiki-old/test.html
+  - rudimentary webapp-install script
+
 version: 0.65
 date:    2009-03-07
 changes:

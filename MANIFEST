@@ -20,3 +20,4 @@ cgi/index.cgi
 cgi/templates/main.html
 cgi/templates/sample_html.html
 cgi/templates/stylesheet.css
+webapp-install

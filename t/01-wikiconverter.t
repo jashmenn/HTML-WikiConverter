@@ -159,14 +159,14 @@ SKIP: {
   skip "LWP::UserAgent required for testing how content is fetched from URIs" => 4 unless $have_lwp;
   skip "Couldn't fetch test website http://www.perl.org. Perhaps you don't have internet access?" => 4 unless LWP::UserAgent->new->get('http://www.perl.org')->is_success;
 
-  is( $wc4->html2wiki( uri => 'http://diberri.dyndns.org/wikipedia/html2wiki/test.html', strip_tags => ['head'] ), '**test**', 'fetch uri, no ua' );
+  is( $wc4->html2wiki( uri => 'http://diberri.dyndns.org/wikipedia/html2wiki-old/test.html', strip_tags => ['head'] ), '**test**', 'fetch uri, no ua' );
   is( $wc4->user_agent->agent, $wc4->__default_ua_string, 'using default ua' );
 
   my $ua_agent = 'html2wiki-test/0.5x';
   my $ua = new LWP::UserAgent( agent => $ua_agent );
   $wc4->user_agent($ua);
 
-  is( $wc4->html2wiki( uri => 'http://diberri.dyndns.org/wikipedia/html2wiki/test.html', strip_tags => ['head'] ), '**test**', 'fetch uri w/ ua' );
+  is( $wc4->html2wiki( uri => 'http://diberri.dyndns.org/wikipedia/html2wiki-old/test.html', strip_tags => ['head'] ), '**test**', 'fetch uri w/ ua' );
   is( $wc4->user_agent->agent, $ua_agent, 'using user-specified ua' );
 };
 

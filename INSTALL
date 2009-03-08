@@ -48,29 +48,50 @@ HTML::WikiConverter and any installed dialects. (Note that you will
 need to have CGI::Application installed to use this feature.)
 
 The H::WC::WebApp module is installed automatically. The remaining
-files necessary for the web application are in the cgi directory. To
-install these files, copy the cgi directory to your cgi-bin directory
-and provide proper file permissions to files contained therein. For
-example:
+files necessary for the web application are in the cgi/ directory. To
+install these files, first follow the basic installation instructions
+above. Next, copy the cgi/ directory to your cgi-bin/ directory,
+provide a suitable value for the 'template_path' variable in the
+provided index.cgi instance script, and assign appropriate
+permissions.
 
-  % cp -r cgi /var/www/cgi-bin/wc
+These steps can all be accomplished via the included webapp-install
+script, which is excuted like so:
 
-For permissions, something like this ought to work:
+  % ./webapp-install
 
-  % chmod 655 /var/www/cgi-bin/wc/index.cgi
-  % chmod a+r /var/www/cgi-bin/wc/templates/*
+When complete, be sure to stop and restart your Apache server:
 
-Update the %config hash in /var/www/cgi-bin/wc/index.cgi to point to
-the templates directory.
+  % sudo apachectl stop
+  % sudo apachectl start
 
-  # Inside /var/www/cgi-bin/wc/index.cgi:
+If the webapp-install script does not work or you choose not to use
+it, you may also install the web application by hand. (This is
+essentially what the webapp-install script does.)
+
+1) Copy the cgi/ directory to your cgi-bin/ directory:
+
+  % cp -r cgi /var/www/cgi-bin/html2wiki
+
+2) Assign appropriate permissions:
+
+  % chmod 655 /var/www/cgi-bin/html2wiki/index.cgi
+  % chmod a+r /var/www/cgi-bin/html2wiki/templates/*
+
+3) Edit the index.cgi instance script to provide a suitable template
+path, replacing __PATH_TO_TEMPLATES__ with the location of the
+cgi/templates/ folder:
+
+  # Inside /var/www/cgi-bin/html2wiki/index.cgi:
   my %config = (
-    template_path => '/var/www/cgi-bin/wc/templates',
+    template_path => '/var/www/cgi-bin/html2wiki/templates',
   );
 
-The template filler should then be available via a standard URL:
+4) Restart your Apache server as appropriate.
 
-  http://www.yourhost.com/cgi-bin/wc/index.cgi
+5) The template filler should then be available via a standard URL:
+
+  http://www.yourhost.com/cgi-bin/html2wiki/index.cgi
 
 Author
 ======
