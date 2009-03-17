@@ -1,5 +1,15 @@
 # Change log for HTML::WikiConverter
 
+version: 0.67
+date: 2009-03-16
+changes:
+  - add 'p_strict' attribute for enabling/disabling
+    HTML::TreeBuilder's p_strict option (enabled by default) -- this
+    was done for the Markdown dialect, specifically for bug #43997
+  - mention XML::Writer requirement in README if cgi app is installed
+  - webapp-install script creates webapp directory if necessary
+  - miscellaneous minor code cleanup
+
 version: 0.66
 date: 2009-03-07
 changes:

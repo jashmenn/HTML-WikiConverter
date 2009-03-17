@@ -77,7 +77,8 @@ The following are required for a basic installation:
   * HTML::Element
   * CSS
 
-CGI::Application is required if you will be using the installed web
+CGI::Application and XML::Writer (sorry -- I'll make it optional in a
+future release) are required if you will be using the installed web
 application, HTML::WikiConverter::WebApp.
 
 BUGS

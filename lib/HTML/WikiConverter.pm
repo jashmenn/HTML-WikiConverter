@@ -15,7 +15,7 @@ use Carp;
 use URI::Escape;
 use URI;
 
-our $VERSION = '0.66';
+our $VERSION = '0.67';
 our $AUTOLOAD;
 
 =head1 NAME
@@ -225,7 +225,7 @@ sub html2wiki {
 
   my $tree = new HTML::TreeBuilder();
   $tree->store_comments(1);
-  $tree->p_strict(1);
+  $tree->p_strict( $self->p_strict );
   $tree->implicit_body_p_tag(1);
   $tree->ignore_unknown(0); # <ruby> et al
 
@@ -296,7 +296,7 @@ sub __wikify {
     # Unspecified tags have their whitespace preserved (this allows
     # 'html' and 'body' tags [among others] to keep formatting when
     # inner tags like 'pre' need to preserve whitespace).
-    my $trim = exists $rules->{trim} ? $rules->{trim} : 'none'; # can't this just be $rules->{trim} || 'none'?
+    my $trim = $rules->{trim} || 'none';
     $output =~ s/^\s+// if $trim eq 'both' or $trim eq 'leading';
     $output =~ s/\s+$// if $trim eq 'both' or $trim eq 'trailing';
 
@@ -421,7 +421,7 @@ sub __preprocess_tree {
     $self->__rm_invalid_text($node);
     $node->delete, next if $self->strip_empty_tags and !$allowedEmptyTag{$node->tag} and $self->__elem_is_empty($node);
     $self->__encode_entities($node) if $node->tag eq '~text' and $self->escape_entities;
-    $self->__rel2abs($node) if $self->base_uri and $rel2abs{$node->tag};
+    $self->__rel2abs($node) if $self->base_uri and exists $rel2abs{$node->tag};
     $self->preprocess_node($node);
   }
 
@@ -809,6 +809,13 @@ Passing C<escape_entities> a true value uses L<HTML::Entities> to
 encode potentially unsafe 'E<lt>', 'E<gt>', and 'E<amp>' characters.
 Defaults to true.
 
+=head2 p_strict
+
+Boolean indicating whether L<HTML::TreeBuilder> will use strict
+handling of paragraph tags when parsing HTML input. (This corresponds
+to the C<p_strict> method in the L<HTML::TreeBuilder> module.) Enabled
+by default.
+
 =head2 passthrough_naked_tags
 
 Boolean indicating whether tags with no attributes ("naked" tags)
@@ -915,6 +922,7 @@ sub __default_attribute_specs { {
   encoding         => { type => SCALAR, default => 'utf-8' },
   escape_entities  => { type => BOOLEAN, default => 1 },
   normalize        => { type => BOOLEAN, default => 1 },
+  p_strict         => { type => BOOLEAN, default => 1 },
   preprocess       => { type => CODEREF | UNDEF, default => undef },
   strip_empty_tags => { type => BOOLEAN, default => 0 },
   slurp            => { type => BOOLEAN, default => 0 },

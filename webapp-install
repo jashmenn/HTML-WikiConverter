@@ -6,13 +6,17 @@ use Sys::Hostname;
 use File::Spec;
 
 my $host = hostname();
-my $default_webapp_dir = $host =~ /habitatoc/
-  ? '/var/www/diberri/cgi-bin/html2wiki'
-		: $host =~ /Schonlein/
-    ? '/Users/diberri/Sites/cgi-bin/html2wiki'
-    : '';
+my $default_webapp_dir =
+  $host =~ /habitatoc/
+    ? '/var/www/diberri/cgi-bin/html2wiki'
+    : $host =~ /Schonlein/
+        ? '/Users/diberri/Sites/cgi-bin/html2wiki'
+        : '';
 
 my $webapp_dir = prompt( 'Path to web application:', $default_webapp_dir );
+die "no path specified" unless $webapp_dir;
+
+doit( "mkdir -p $webapp_dir" ) if ! -d $webapp_dir;
 doit( "cp -R cgi/* $webapp_dir" );
 
 my $index_cgi = File::Spec->catfile( $webapp_dir, 'index.cgi' );
@@ -36,5 +40,8 @@ sub prompt {
 
   printf( '%s [%s]: ', $prompt, $default );
   chomp( my $input = <STDIN> );
+  $input =~ s/^\s+//;
+  $input =~ s/\s+$//;
+
   return $input || $default || '';
 }
