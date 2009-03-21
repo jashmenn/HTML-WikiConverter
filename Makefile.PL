@@ -14,7 +14,7 @@ WriteMakefile(
         'Test::More'       => 0,
         'HTML::Tree'       => 3.18,
         'HTML::Element'    => 0,
-        'CSS'              => 0,
+        'CSS'              => 1.07, # (bug #20594)
         'URI'              => 1.35,
         'Pod::Usage'       => 1.16,
         'URI::Escape'      => 0,

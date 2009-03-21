@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               HTML-WikiConverter
-version:            0.67
+version:            0.68
 abstract:           Convert HTML to wiki markup
 author:
     - David J. Iberri <diberri@cpan.org>
@@ -11,7 +11,7 @@ configure_requires:
 requires:
     Carp:                 0
     Class::Data::Inheritable:  0.02
-    CSS:                  0
+    CSS:                  1.07
     Exporter:             0
     HTML::Element:        0
     HTML::Entities:       1.27
